@@ -33,9 +33,9 @@ except ImportError:
     sys.exit(1)
 
 
-TOKEN = "ta715ejsep8ves6gl9d4wer1kptbcc"
-CLIENT_ID = "gp762nuuoqcoxypju8c569th9wz7q5"
-CHANNEL = "vokerr"
+TOKEN = "XXXXXXXXX"
+CLIENT_ID = "XXXXXXXXX"
+CHANNEL = "XXXXXXXXX"
 COOLDOWN = 60
 
 DB_PATH = "bakerank_data.txt"
