@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>BakeRank Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Arial', sans-serif;
+            position: relative;
+        }
+
+        /* Bake Animation Container */
+        #bake-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .bake-item {
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            animation: bake-float 4s linear forwards;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
+        }
+
+        .bake-item.legendary {
+            width: 96px;
+            height: 96px;
+            filter: drop-shadow(0 0 15px gold) drop-shadow(0 0 30px orange);
+        }
+
+        .explosion-item {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            animation: explosion-burst 2s ease-out forwards;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
+        }
+
+        @keyframes explosion-burst {
+            0% {
+                transform: translate(0, 0) scale(0.5) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(1) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        @keyframes bake-float {
+            0% {
+                transform: translateY(0) scale(0.5) rotate(0deg);
+                opacity: 1;
+            }
+            12.5% {
+                transform: translateY(-116px) scale(0.833) rotate(120deg);
+                opacity: 1;
+            }
+            25% {
+                transform: translateY(-233px) scale(1.166) rotate(240deg);
+                opacity: 1;
+            }
+            37.5% {
+                transform: translateY(-350px) scale(1.5) rotate(360deg);
+                opacity: 1;
+            }
+            75% {
+                transform: translateY(-350px) scale(1.5) rotate(360deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-350px) scale(1.5) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* Notification Banner */
+        #notification {
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6);
+            transition: top 0.5s ease;
+            z-index: 1000;
+        }
+
+        #notification.show {
+            top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div id="bake-container"></div>
+
+    <div id="notification"></div>
+
+    <script>
+        const ws = new WebSocket("ws://localhost:8765");
+        const bakeContainer = document.getElementById("bake-container");
+        const notification = document.getElementById("notification");
+
+        ws.onopen = () => {
+            console.log("✅ Connected to overlay server");
+            // Show visual confirmation
+            document.body.style.border = "5px solid lime";
+            setTimeout(() => { document.body.style.border = "none"; }, 2000);
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("📩 Received:", data);
+
+            if (data.event === "bake") {
+                animateBake(data);
+                showNotification(data);
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error("❌ WebSocket error:", error);
+        };
+
+        ws.onclose = () => {
+            console.log("🔌 Disconnected from overlay server");
+        };
+
+        function animateBake(data) {
+            console.log("🎨 Animating bake:", data.item);
+            const item = document.createElement("img");
+            item.src = data.item;
+            item.className = data.is_legendary ? "bake-item legendary" : "bake-item";
+            
+            // Error handling for image loading
+            item.onerror = () => {
+                console.error("❌ Failed to load image:", data.item);
+            };
+            item.onload = () => {
+                console.log("✅ Image loaded successfully:", data.item);
+            };
+            
+            // Random horizontal position
+            const randomX = Math.random() * (window.innerWidth - 100) + 50;
+            item.style.left = randomX + "px";
+            item.style.bottom = "0px";
+            
+            bakeContainer.appendChild(item);
+
+            // Trigger explosion if legendary or ranked up
+            if (data.trigger_explosion) {
+                setTimeout(() => {
+                    triggerExplosion(randomX, -350);
+                }, 1500); // Explosion at peak
+            }
+
+            // Remove after animation (matches animation duration)
+            setTimeout(() => {
+                item.remove();
+            }, 4000);
+        }
+
+        function triggerExplosion(centerX, centerY) {
+            console.log("💥 Triggering pastry explosion!");
+            const explosionCount = 12;
+            const allItems = Array.from(document.querySelectorAll('#bake-container img'))
+                .map(img => img.src.split('/').pop());
+            
+            // Use available items for explosion
+            const availableItems = allItems.length > 0 ? allItems : ['croissant.png', 'donut.png'];
+            
+            for (let i = 0; i < explosionCount; i++) {
+                const explosionItem = document.createElement("img");
+                explosionItem.src = availableItems[Math.floor(Math.random() * availableItems.length)];
+                explosionItem.className = "explosion-item";
+                
+                // Calculate random direction
+                const angle = (Math.PI * 2 * i) / explosionCount;
+                const distance = 200 + Math.random() * 100;
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance;
+                
+                explosionItem.style.left = centerX + "px";
+                explosionItem.style.bottom = Math.abs(centerY) + "px";
+                explosionItem.style.setProperty('--tx', tx + 'px');
+                explosionItem.style.setProperty('--ty', ty + 'px');
+                
+                bakeContainer.appendChild(explosionItem);
+                
+                setTimeout(() => {
+                    explosionItem.remove();
+                }, 2000);
+            }
+        }
+
+        function showNotification(data) {
+            // Format the item name from filename (e.g., "croissant.png" -> "Croissant")
+            const itemName = data.item.replace('.png', '').replace(/-/g, ' ').replace(/_/g, ' ')
+                .split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+            
+            // Build notification text
+            let notifText = '';
+            if (data.is_legendary) {
+                notifText = `✨ ${data.user} baked a LEGENDARY ${itemName}! ✨`;
+            } else if (data.ranked_up) {
+                notifText = `🎉 ${data.user} baked a ${itemName} and ranked up to ${data.rank}! 🎉`;
+            } else {
+                notifText = `🍞 ${data.user} baked a ${itemName}! (${data.rank})`;
+            }
+            
+            notification.textContent = notifText;
+            notification.classList.add("show");
+
+            setTimeout(() => {
+                notification.classList.remove("show");
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

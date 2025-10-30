@@ -1,0 +1,41 @@
+================================================================================
+🎨 DYNAMIC BAKED GOODS SYSTEM - INSTRUCTIONS
+================================================================================
+
+The bot now AUTOMATICALLY detects ALL .png files in this folder!
+
+HOW IT WORKS:
+-------------
+1. Add ANY .png file to this overlay/ folder
+2. The bot will randomly select from available PNG files
+3. The filename becomes the display name in chat
+4. You can add or remove PNGs anytime - no code changes needed!
+
+EXAMPLES:
+---------
+File: baguette.png          → Chat shows: "baked a Baguette!"
+File: chocolate_cake.png    → Chat shows: "baked a Chocolate Cake!"
+File: apple-pie.png         → Chat shows: "baked an Apple Pie!"
+File: golden_croissant.png  → Chat shows: "baked a Golden Croissant!"
+
+NAMING TIPS:
+------------
+- Use underscores (_) or hyphens (-) for spaces
+- Use lowercase with capital first letters for best readability
+- Keep names descriptive but not too long
+
+SPECIFICATIONS:
+---------------
+- Recommended size: 64x64 or 96x96 pixels
+- Format: PNG with transparent background
+- No limit on number of items!
+
+START BY:
+---------
+Delete this .txt file and add your first PNG image (e.g., baguette.png)
+Then add as many more as you want - the bot handles the rest!
+
+IMPORTANT:
+----------
+Make sure you have at least ONE .png file in this folder before running the bot.
+If no PNGs are found, the bot will use a fallback list but won't work correctly.

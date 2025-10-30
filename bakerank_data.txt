@@ -1,0 +1,5 @@
+# BakeRank Player Database - Edit with Notepad
+# Format: username | bake_score | last_bake_time
+# WARNING: Keep the | separators intact!
+
+vokerr | 3 | 1761853334.49373
