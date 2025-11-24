@@ -58,8 +58,9 @@ Bot automatically detects all PNG files!
 
 ## 🎮 Twitch Commands
 
-- **!bake** - Bake a pastry, gain 1 point, rank up
-- **!TopBakers** - Show top 5 bakers on leaderboard
+- **!bake** - Bake a pastry, gain points, chance for rare items
+- **!eat [amount]** - Consume points to increase Luck for your next bake (e.g., `!eat 5`)
+- **!TopBakers** - Show top 5 bakers and shiny badges
 
 ---
 
@@ -79,9 +80,38 @@ Bot automatically detects all PNG files!
 
 ---
 
+## 🎲 Rarity & Economy
+
+Every bake has a chance for special qualities!
+
+- **🔥 Burnt (5%)**: 0 Points. You fell asleep!
+- **🥐 Standard**: 1 Point. Normal bake.
+- **✨ Golden (5%)**: 3 Points. Masterpiece!
+- **💎 Shiny (0.1%)**: 10 Points + Badge. Ultra rare!
+
+### Luck System
+Use **!eat [amount]** to trade points for Luck.
+- 1 Point = +5% Luck
+- Higher luck increases chances for **Golden** and **Shiny** items on your next bake.
+
+---
+
+## 🚨 Live Events
+
+Trigger these from the GUI to engage your chat!
+
+- **🚀 Rush Hour**: Cooldowns reduced to 10s for 2 minutes.
+- **🍪 Bake Sale**: Community goal (150 items). Reward: **Michelin Star** ⭐.
+- **🧐 Food Critic**: Spawns a critic craving a specific item. First to bake it gets **+50 Points**.
+
+---
+
 ## 💥 Special Effects
 
-- **Legendary Bake** (1% chance): Golden glow + explosion
+- **Shiny Bake** (0.1% + Luck): Color-shifting glow + badge + explosion
+- **Golden Bake** (5% + Luck): Golden glow + 3x points
+- **Burnt Bake** (5%): Charred item + 0 points
+- **Legendary Bake** (1% chance): Giant size + explosion
 - **Rank Up**: Pastry explosion animation
 - **Explosion**: 12 pastries burst across the screen
 
@@ -93,8 +123,8 @@ Player data is stored in `bakerank_data.txt` - editable with Notepad!
 
 Format:
 ```
-username | bake_score | last_bake_time
-vokerr | 150 | 1698674532.5
+username | bake_score | last_bake_time | luck | last_eat_time | michelin_stars | shinies
+vokerr | 150 | 1698674532.5 | 25.0 | 1698674600.0 | 1 | 2
 ```
 
 **WARNING**: Keep the `|` separators intact!
