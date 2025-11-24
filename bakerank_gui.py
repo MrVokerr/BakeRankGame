@@ -849,3 +849,9 @@ class BakeRankGUI(QMainWindow):
             self.log("🧐 Triggered Food Critic!")
         else:
             QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = BakeRankGUI()
+    window.show()
+    sys.exit(app.exec_())

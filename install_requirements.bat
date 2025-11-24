@@ -20,12 +20,13 @@ if %errorlevel% equ 0 (
     py -m pip install twitchio==2.9.1
     py -m pip install websockets
     py -m pip install PyQt5
+    py -m pip install pyinstaller
     echo.
     echo ========================================
     echo   Installation Complete!
     echo ========================================
     echo.
-    py -m pip show twitchio websockets PyQt5
+    py -m pip show twitchio websockets PyQt5 pyinstaller
     echo.
     echo You can now run bakerank_bot.py
     echo.
@@ -45,12 +46,13 @@ if %errorlevel% equ 0 (
     python -m pip install twitchio==2.9.1
     python -m pip install websockets
     python -m pip install PyQt5
+    python -m pip install pyinstaller
     echo.
     echo ========================================
     echo   Installation Complete!
     echo ========================================
     echo.
-    python -m pip show twitchio websockets PyQt5
+    python -m pip show twitchio websockets PyQt5 pyinstaller
     echo.
     echo You can now run bakerank_bot.py
     echo.

@@ -7,8 +7,12 @@ echo ========================================
 echo   BakeRank Bot - EXE Builder
 echo ========================================
 echo.
-echo This will create a standalone .exe file
-echo that works without Python installed!
+echo Cleaning up previous builds...
+if exist "build" rd /s /q "build"
+if exist "dist" rd /s /q "dist"
+if exist "BakeRankBot.spec" del "BakeRankBot.spec"
+if exist "BakeRankBot.exe" del "BakeRankBot.exe"
+
 echo.
 echo Building executable...
 echo.
@@ -18,13 +22,13 @@ py --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using py launcher...
     py -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" --icon=NONE ^
-        --add-data "overlay;overlay" ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
         --hidden-import "websockets" ^
         --hidden-import "PyQt5" ^
+        --hidden-import "aiohttp" ^
         bakerank_gui.py
-    goto :build_complete
+    goto :move_exe
 )
 
 REM Try python
@@ -32,13 +36,13 @@ python --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using python...
     python -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" --icon=NONE ^
-        --add-data "overlay;overlay" ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
         --hidden-import "websockets" ^
         --hidden-import "PyQt5" ^
+        --hidden-import "aiohttp" ^
         bakerank_gui.py
-    goto :build_complete
+    goto :move_exe
 )
 
 echo ========================================
@@ -51,28 +55,28 @@ echo.
 pause
 exit /b 1
 
-:build_complete
+:move_exe
 echo.
-echo ========================================
-echo   Build Complete!
-echo ========================================
-echo.
-echo Copying overlay folder to dist...
-xcopy /E /I /Y "overlay" "dist\overlay"
-if errorlevel 1 (
-    echo ERROR: Failed to copy overlay folder to dist!
-    echo Please make sure the 'overlay' folder exists and try again.
-    pause
-    exit /b 1
+echo Moving executable to root folder...
+if exist "dist\BakeRankBot.exe" (
+    move /Y "dist\BakeRankBot.exe" ".\BakeRankBot.exe"
+    echo.
+    echo Cleaning up build folders...
+    rd /s /q "build"
+    rd /s /q "dist"
+    del "BakeRankBot.spec"
+    
+    echo.
+    echo ========================================
+    echo   Build Complete!
+    echo ========================================
+    echo.
+    echo BakeRankBot.exe is ready in this folder.
+    echo It will use the 'overlay' folder next to it.
+    echo.
+) else (
+    echo.
+    echo ERROR: Build failed! No EXE found in dist folder.
+    echo.
 )
-echo.
-echo Your executable is in the 'dist' folder:
-echo   dist\BakeRankBot.exe
-echo.
-echo The 'overlay' folder has been copied there too!
-echo.
-echo You can distribute the entire 'dist' folder content.
-echo.
-echo No Python required for users!
-echo.
 pause
