@@ -57,15 +57,21 @@ echo ========================================
 echo   Build Complete!
 echo ========================================
 echo.
+echo Copying overlay folder to dist...
+xcopy /E /I /Y "overlay" "dist\overlay"
+if errorlevel 1 (
+    echo ERROR: Failed to copy overlay folder to dist!
+    echo Please make sure the 'overlay' folder exists and try again.
+    pause
+    exit /b 1
+)
+echo.
 echo Your executable is in the 'dist' folder:
 echo   dist\BakeRankBot.exe
 echo.
-echo IMPORTANT: Copy the 'overlay' folder to
-echo the same location as BakeRankBot.exe
+echo The 'overlay' folder has been copied there too!
 echo.
-echo You can distribute:
-echo   - BakeRankBot.exe
-echo   - overlay folder (with PNG files)
+echo You can distribute the entire 'dist' folder content.
 echo.
 echo No Python required for users!
 echo.
