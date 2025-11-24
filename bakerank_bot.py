@@ -189,7 +189,15 @@ class BakeRankBot(commands.Bot):
         # ==================================================
 
         old_rank_title = get_rank_title(bake_score)
-        bake_score += 1
+        
+        # Choose baked good (1% chance for legendary)
+        bake_item, is_legendary = choose_baked_good()
+        item_display_name = format_item_name(bake_item)
+        
+        # Points logic
+        points_gained = 5 if is_legendary else 1
+        bake_score += points_gained
+        
         new_rank_title = get_rank_title(bake_score)
 
         # Update player data
@@ -199,10 +207,6 @@ class BakeRankBot(commands.Bot):
 
         # Check if player ranked up
         ranked_up = old_rank_title != new_rank_title
-        
-        # Choose baked good (1% chance for legendary)
-        bake_item, is_legendary = choose_baked_good()
-        item_display_name = format_item_name(bake_item)
         
         # Determine if explosion should trigger
         trigger_explosion = ranked_up or is_legendary
@@ -218,9 +222,9 @@ class BakeRankBot(commands.Bot):
         
         # Chat message
         if is_legendary:
-            await ctx.send(f"✨ @{username} baked a LEGENDARY {item_display_name}! ✨ ({new_rank_title}) | Score: {int(bake_score)}")
+            await ctx.send(f"✨ @{username} baked a LEGENDARY {item_display_name}! ✨ (+{points_gained} pts) ({new_rank_title}) | Score: {int(bake_score)}")
         else:
-            await ctx.send(f"🍞 @{username} baked a {item_display_name}! ({new_rank_title}) | Score: {int(bake_score)}")
+            await ctx.send(f"🍞 @{username} baked a {item_display_name}! (+{points_gained} pts) ({new_rank_title}) | Score: {int(bake_score)}")
 
         # Send bake event to overlay
         message = {

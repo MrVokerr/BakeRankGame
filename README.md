@@ -87,6 +87,7 @@ Every bake has a chance for special qualities!
 - **🔥 Burnt (5%)**: 0 Points. You fell asleep!
 - **🥐 Standard**: 1 Point. Normal bake.
 - **✨ Golden (5%)**: 3 Points. Masterpiece!
+- **👑 Legendary (1%)**: 5 Points. Rare item drop!
 - **💎 Shiny (0.1%)**: 10 Points + Badge. Ultra rare!
 
 ### Luck System
@@ -111,7 +112,7 @@ Trigger these from the GUI to engage your chat!
 - **Shiny Bake** (0.1% + Luck): Color-shifting glow + badge + explosion
 - **Golden Bake** (5% + Luck): Golden glow + 3x points
 - **Burnt Bake** (5%): Charred item + 0 points
-- **Legendary Bake** (1% chance): Giant size + explosion
+- **Legendary Bake** (1% chance): Giant size + explosion + 5 points
 - **Rank Up**: Pastry explosion animation
 - **Explosion**: 12 pastries burst across the screen
 

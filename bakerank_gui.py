@@ -292,6 +292,10 @@ class BakeRankBot(commands.Bot):
         bake_item, is_legendary_item = choose_baked_good()
         item_display_name = format_item_name(bake_item)
         
+        # Legendary Bonus (Override points if legendary)
+        if is_legendary_item:
+            points_gained = 5
+
         # Food Critic Check
         critic_bonus = 0
         critic_msg = ""
