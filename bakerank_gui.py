@@ -151,6 +151,7 @@ async def start_overlay_server():
 class BakeRankBot(commands.Bot):
     def __init__(self, token, channel, log_callback):
         super().__init__(token=token, prefix="!", initial_channels=[channel])
+        self.token = token
         self.log_callback = log_callback
         self.channel_name = channel
         
@@ -170,6 +171,7 @@ class BakeRankBot(commands.Bot):
         self.log_callback(f"✅ Bot logged in as {self.nick}")
         self.log_callback(f"📺 Connected to channel: {self.channel_name}")
         self.log_callback(f"🎮 Commands: !bake, !TopBakers")
+        
         self.log_callback("-" * 50)
 
     @commands.command(name="eat")
@@ -561,15 +563,6 @@ class BakeRankGUI(QMainWindow):
         token_layout.addWidget(self.token_input)
         config_layout.addLayout(token_layout)
         
-        # Client ID
-        client_layout = QHBoxLayout()
-        client_layout.addWidget(QLabel("Client ID:"))
-        self.client_input = QLineEdit()
-        self.client_input.setEchoMode(QLineEdit.Password)
-        self.client_input.setText(self.config.get('client_id', ''))
-        client_layout.addWidget(self.client_input)
-        config_layout.addLayout(client_layout)
-        
         # Channel
         channel_layout = QHBoxLayout()
         channel_layout.addWidget(QLabel("Channel Name:"))
@@ -659,7 +652,6 @@ class BakeRankGUI(QMainWindow):
     def save_configuration(self):
         config = {
             'token': self.token_input.text(),
-            'client_id': self.client_input.text(),
             'channel': self.channel_input.text()
         }
         try:
@@ -787,10 +779,3 @@ class BakeRankGUI(QMainWindow):
             self.log("🧐 Triggered Food Critic!")
         else:
             QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
-
-# ============ MAIN ============
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = BakeRankGUI()
-    window.show()
-    sys.exit(app.exec_())

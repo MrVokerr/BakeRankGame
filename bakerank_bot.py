@@ -34,7 +34,6 @@ except ImportError:
 
 
 TOKEN = "XXXXXXXXX"
-CLIENT_ID = "XXXXXXXXX"
 CHANNEL = "XXXXXXXXX"
 COOLDOWN = 60
 
@@ -161,12 +160,102 @@ def get_rank_title(score):
 class BakeRankBot(commands.Bot):
     def __init__(self):
         super().__init__(token=TOKEN, prefix="!", initial_channels=[CHANNEL])
+        self.channel_name = CHANNEL
+        
+        # Event States
+        self.rush_hour_active = False
+        self.rush_hour_end_time = 0
+        
+        self.bake_sale_active = False
+        self.bake_sale_target = 0
+        self.bake_sale_current = 0
+        self.bake_sale_participants = set()
+        
+        self.food_critic_active = False
+        self.food_critic_craving = None
 
     async def event_ready(self):
         print(f"✅ Bot logged in as {self.nick}")
-        print(f"📺 Listening to channel: {CHANNEL}")
+        print(f"📺 Connected to channel: {self.channel_name}")
         print(f"🎮 Commands: !bake, !TopBakers")
+        
         print("-" * 50)
+
+    async def start_rush_hour(self):
+        if self.rush_hour_active:
+            return
+        
+        self.rush_hour_active = True
+        self.rush_hour_end_time = time.time() + 60  # 60 seconds
+        print("🚀 RUSH HOUR STARTED! 2x Points for 60 seconds!")
+        
+        message = {
+            "event": "rush_hour_start",
+            "duration": 60
+        }
+        await broadcast_to_overlays(message)
+        
+        await asyncio.sleep(60)
+        
+        self.rush_hour_active = False
+        print("🛑 Rush Hour Ended.")
+        message = {"event": "rush_hour_end"}
+        await broadcast_to_overlays(message)
+
+    async def start_bake_sale(self):
+        if self.bake_sale_active:
+            return
+            
+        self.bake_sale_active = True
+        self.bake_sale_target = 10  # Need 10 bakes
+        self.bake_sale_current = 0
+        self.bake_sale_participants = set()
+        
+        print("🍪 BAKE SALE STARTED! Community Goal: 10 Bakes!")
+        
+        message = {
+            "event": "bake_sale_start",
+            "target": self.bake_sale_target
+        }
+        await broadcast_to_overlays(message)
+        
+        # Event lasts 2 minutes max
+        await asyncio.sleep(120)
+        
+        if self.bake_sale_active:
+            self.bake_sale_active = False
+            print("🛑 Bake Sale Ended (Time's up).")
+            message = {"event": "bake_sale_end", "success": False}
+            await broadcast_to_overlays(message)
+
+    async def spawn_food_critic(self):
+        if self.food_critic_active:
+            return
+            
+        # Pick a random item to crave
+        craving, _ = choose_baked_good()
+        craving_name = format_item_name(craving)
+        
+        self.food_critic_active = True
+        self.food_critic_craving = craving
+        
+        print(f"🧐 FOOD CRITIC ARRIVED! He wants a {craving_name}!")
+        
+        message = {
+            "event": "food_critic_spawn",
+            "craving": craving,
+            "craving_name": craving_name
+        }
+        await broadcast_to_overlays(message)
+        
+        # Stays for 90 seconds
+        await asyncio.sleep(90)
+        
+        if self.food_critic_active:
+            self.food_critic_active = False
+            print("🚪 Food Critic left disappointed.")
+            message = {"event": "food_critic_leave", "satisfied": False}
+            await broadcast_to_overlays(message)
 
     # ------------- CORE COMMANDS -----------------
     @commands.command(name="bake")

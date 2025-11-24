@@ -11,7 +11,6 @@ An interactive Twitch stream game where viewers bake virtual pastries, climb ran
 1. Run `BakeRankBot.exe` from the `dist` folder
 2. Enter your credentials:
    - **OAuth Token**: Get from https://twitchtokengenerator.com/
-   - **Client ID**: Get from Twitch Developer Console
    - **Channel Name**: Your Twitch username
 3. Click "💾 Save Configuration"
 4. Click "▶ Start Bot"
@@ -35,7 +34,6 @@ py -m pip install twitchio==2.9.1 websockets
 ### Step 2: Configure Bot
 Edit `bakerank_bot.py` and set:
 - `TOKEN` - Your OAuth token
-- `CLIENT_ID` - Your Twitch Client ID  
 - `CHANNEL` - Your channel name
 
 ### Step 3: Run Bot
