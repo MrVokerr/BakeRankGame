@@ -44,6 +44,23 @@
             filter: drop-shadow(0 0 15px gold) drop-shadow(0 0 30px orange);
         }
 
+        .bake-item.burnt {
+            filter: grayscale(100%) brightness(30%) sepia(100%) hue-rotate(-50deg) saturate(600%) contrast(0.8);
+        }
+
+        .bake-item.golden {
+            filter: drop-shadow(0 0 10px gold) brightness(1.2);
+        }
+
+        .bake-item.shiny {
+            animation: bake-float 4s linear forwards, shiny-pulse 0.5s infinite alternate;
+        }
+
+        @keyframes shiny-pulse {
+            from { filter: hue-rotate(0deg) drop-shadow(0 0 5px cyan); }
+            to { filter: hue-rotate(90deg) drop-shadow(0 0 15px magenta); }
+        }
+
         .explosion-item {
             position: absolute;
             width: 48px;
@@ -152,7 +169,12 @@
             console.log("🎨 Animating bake:", data.item);
             const item = document.createElement("img");
             item.src = data.item;
-            item.className = data.is_legendary ? "bake-item legendary" : "bake-item";
+            
+            let className = "bake-item";
+            if (data.is_legendary) className += " legendary";
+            if (data.rarity) className += " " + data.rarity;
+            
+            item.className = className;
             
             // Error handling for image loading
             item.onerror = () => {
@@ -222,7 +244,14 @@
             
             // Build notification text
             let notifText = '';
-            if (data.is_legendary) {
+            
+            if (data.rarity === 'burnt') {
+                notifText = `🔥 ${data.user} burnt a ${itemName}!`;
+            } else if (data.rarity === 'shiny') {
+                notifText = `💎✨ ${data.user} baked a SHINY ${itemName}!`;
+            } else if (data.rarity === 'golden') {
+                notifText = `🌟 ${data.user} baked a GOLDEN ${itemName}!`;
+            } else if (data.is_legendary) {
                 notifText = `✨ ${data.user} baked a LEGENDARY ${itemName}! ✨`;
             } else if (data.ranked_up) {
                 notifText = `🎉 ${data.user} baked a ${itemName} and ranked up to ${data.rank}! 🎉`;

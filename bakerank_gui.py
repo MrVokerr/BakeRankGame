@@ -33,13 +33,30 @@ def load_player_data():
                 if not line or line.startswith('#'):
                     continue
                 parts = line.split('|')
-                if len(parts) == 3:
+                if len(parts) >= 3:
                     username = parts[0].strip()
                     bake_score = int(parts[1].strip())
                     last_bake_time = float(parts[2].strip())
+                    
+                    # Default values for new fields
+                    luck = 0.0
+                    last_eat_time = 0.0
+                    michelin_stars = 0
+                    shinies = 0
+                    
+                    if len(parts) >= 7:
+                        luck = float(parts[3].strip())
+                        last_eat_time = float(parts[4].strip())
+                        michelin_stars = int(parts[5].strip())
+                        shinies = int(parts[6].strip())
+                    
                     players[username] = {
                         'bake_score': bake_score,
-                        'last_bake_time': last_bake_time
+                        'last_bake_time': last_bake_time,
+                        'luck': luck,
+                        'last_eat_time': last_eat_time,
+                        'michelin_stars': michelin_stars,
+                        'shinies': shinies
                     }
     except Exception as e:
         print(f"⚠️ Warning: Could not load database: {e}")
@@ -50,10 +67,10 @@ def save_player_data(players):
     try:
         with open(DB_PATH, 'w', encoding='utf-8') as f:
             f.write("# BakeRank Player Database - Edit with Notepad\n")
-            f.write("# Format: username | bake_score | last_bake_time\n")
+            f.write("# Format: username | bake_score | last_bake_time | luck | last_eat_time | michelin_stars | shinies\n")
             f.write("# WARNING: Keep the | separators intact!\n\n")
             for username, data in sorted(players.items(), key=lambda x: x[1]['bake_score'], reverse=True):
-                f.write(f"{username} | {data['bake_score']} | {data['last_bake_time']}\n")
+                f.write(f"{username} | {data['bake_score']} | {data['last_bake_time']} | {data.get('luck', 0.0)} | {data.get('last_eat_time', 0.0)} | {data.get('michelin_stars', 0)} | {data.get('shinies', 0)}\n")
     except Exception as e:
         print(f"❌ Error saving database: {e}")
 
@@ -136,6 +153,18 @@ class BakeRankBot(commands.Bot):
         super().__init__(token=token, prefix="!", initial_channels=[channel])
         self.log_callback = log_callback
         self.channel_name = channel
+        
+        # Event States
+        self.rush_hour_active = False
+        self.rush_hour_end_time = 0
+        
+        self.bake_sale_active = False
+        self.bake_sale_target = 0
+        self.bake_sale_current = 0
+        self.bake_sale_participants = set()
+        
+        self.food_critic_active = False
+        self.food_critic_craving = None
 
     async def event_ready(self):
         self.log_callback(f"✅ Bot logged in as {self.nick}")
@@ -143,25 +172,138 @@ class BakeRankBot(commands.Bot):
         self.log_callback(f"🎮 Commands: !bake, !TopBakers")
         self.log_callback("-" * 50)
 
+    @commands.command(name="eat")
+    async def eat(self, ctx):
+        username = ctx.author.name.lower()
+        parts = ctx.message.content.split()
+        amount = 1
+        if len(parts) > 1:
+            try:
+                amount = int(parts[1])
+            except ValueError:
+                pass
+        
+        if amount < 1:
+            return
+
+        if username not in player_data:
+            await ctx.send(f"@{username}, you need to bake something first!")
+            return
+
+        now = time.time()
+        last_eat = player_data[username].get('last_eat_time', 0)
+        
+        # 5 minute cooldown (300 seconds)
+        if now - last_eat < 300:
+            remaining = int(300 - (now - last_eat))
+            await ctx.send(f"⏳ @{username}, you're too full! Wait {remaining}s.")
+            return
+
+        current_score = player_data[username]['bake_score']
+        if current_score < amount:
+            await ctx.send(f"@{username}, you don't have enough points! (Current: {current_score})")
+            return
+
+        # Consume points
+        player_data[username]['bake_score'] -= amount
+        
+        # Add luck (5% per point)
+        current_luck = player_data[username].get('luck', 0.0)
+        added_luck = amount * 5.0
+        new_luck = current_luck + added_luck
+        player_data[username]['luck'] = new_luck
+        player_data[username]['last_eat_time'] = now
+        
+        save_player_data(player_data)
+        
+        await ctx.send(f"🍽️ @{username} ate {amount} points! Luck increased by {int(added_luck)}% (Total: {int(new_luck)}%). Good luck on your next bake!")
+
     @commands.command(name="bake")
     async def bake(self, ctx):
         username = ctx.author.name.lower()
         now = time.time()
 
         if username not in player_data:
-            player_data[username] = {'bake_score': 0, 'last_bake_time': 0}
+            player_data[username] = {
+                'bake_score': 0, 
+                'last_bake_time': 0,
+                'luck': 0.0,
+                'last_eat_time': 0.0,
+                'michelin_stars': 0,
+                'shinies': 0
+            }
+        
+        # Ensure all fields exist
+        if 'luck' not in player_data[username]: player_data[username]['luck'] = 0.0
+        if 'shinies' not in player_data[username]: player_data[username]['shinies'] = 0
+        if 'michelin_stars' not in player_data[username]: player_data[username]['michelin_stars'] = 0
         
         bake_score = player_data[username]['bake_score']
         last_bake_time = player_data[username]['last_bake_time']
+        luck = player_data[username]['luck']
 
-        # COOLDOWN CHECK (60 seconds per user)
-        if now - last_bake_time < COOLDOWN:
-            remaining = int(COOLDOWN - (now - last_bake_time))
+        # COOLDOWN CHECK
+        cooldown_time = COOLDOWN
+        
+        # Check Rush Hour
+        if self.rush_hour_active:
+            if now > self.rush_hour_end_time:
+                self.rush_hour_active = False
+                self.log_callback("🛑 Rush Hour ended!")
+                await ctx.send("🛑 The Rush Hour has ended! Cooldowns are back to normal.")
+            else:
+                cooldown_time = 10 # Reduced cooldown
+        
+        if now - last_bake_time < cooldown_time:
+            remaining = int(cooldown_time - (now - last_bake_time))
             await ctx.send(f"⏳ @{username}, oven cooling... wait {remaining}s.")
             return
 
         old_rank_title = get_rank_title(bake_score)
-        bake_score += 1
+        
+        # Rarity Logic
+        shiny_prob = 0.001 + (luck / 1000.0)
+        golden_prob = 0.05 + (luck / 200.0)
+        burnt_prob = 0.05
+        
+        rand_val = random.random()
+        
+        rarity = "standard"
+        points_gained = 1
+        
+        if rand_val < shiny_prob:
+            rarity = "shiny"
+            points_gained = 10
+            player_data[username]['shinies'] += 1
+        elif rand_val < (shiny_prob + burnt_prob):
+            rarity = "burnt"
+            points_gained = 0
+        elif rand_val < (shiny_prob + burnt_prob + golden_prob):
+            rarity = "golden"
+            points_gained = 3
+        else:
+            rarity = "standard"
+            points_gained = 1
+            
+        # Reset luck
+        player_data[username]['luck'] = 0.0
+        
+        # Choose item
+        bake_item, is_legendary_item = choose_baked_good()
+        item_display_name = format_item_name(bake_item)
+        
+        # Food Critic Check
+        critic_bonus = 0
+        critic_msg = ""
+        if self.food_critic_active and self.food_critic_craving == bake_item:
+            critic_bonus = 50
+            points_gained += critic_bonus
+            self.food_critic_active = False
+            self.food_critic_craving = None
+            critic_msg = " 🧐 THE CRITIC IS PLEASED! (+50 Bonus)"
+            self.log_callback(f"🧐 {username} satisfied the Food Critic!")
+
+        bake_score += points_gained
         new_rank_title = get_rank_title(bake_score)
 
         player_data[username]['bake_score'] = bake_score
@@ -169,22 +311,49 @@ class BakeRankBot(commands.Bot):
         save_player_data(player_data)
 
         ranked_up = old_rank_title != new_rank_title
-        bake_item, is_legendary = choose_baked_good()
-        item_display_name = format_item_name(bake_item)
-        trigger_explosion = ranked_up or is_legendary
         
-        if is_legendary:
-            self.log_callback(f"✨ {username} baked a LEGENDARY {item_display_name}! ✨")
-        else:
-            self.log_callback(f"🍞 {username} baked a {item_display_name}!")
-            
-        if ranked_up:
-            self.log_callback(f"🎉 {username} ranked up to {new_rank_title}!")
+        trigger_explosion = ranked_up or (rarity == "shiny") or (rarity == "golden") or is_legendary_item or (critic_bonus > 0)
         
-        if is_legendary:
-            await ctx.send(f"✨ @{username} baked a LEGENDARY {item_display_name}! ✨ ({new_rank_title}) | Score: {int(bake_score)}")
+        # Bake Sale Logic
+        bake_sale_msg = ""
+        if self.bake_sale_active:
+            self.bake_sale_current += 1
+            self.bake_sale_participants.add(username)
+            remaining_sale = self.bake_sale_target - self.bake_sale_current
+            if remaining_sale <= 0:
+                self.bake_sale_active = False
+                bake_sale_msg = " 🍪 BAKE SALE COMPLETE! All participants get a Michelin Star! ⭐"
+                self.log_callback("🍪 Bake Sale Completed!")
+                # Award stars
+                for participant in self.bake_sale_participants:
+                    if participant in player_data:
+                        player_data[participant]['michelin_stars'] = player_data[participant].get('michelin_stars', 0) + 1
+                save_player_data(player_data)
+            elif self.bake_sale_current % 10 == 0: # Notify every 10 items
+                 bake_sale_msg = f" (Bake Sale: {self.bake_sale_current}/{self.bake_sale_target})"
+
+        # Construct Message
+        msg = ""
+        if rarity == "burnt":
+            msg = f"🔥 @{username} tried to bake a {item_display_name} but fell asleep! It's BURNT! (0 pts)"
+            self.log_callback(f"🔥 {username} burnt a {item_display_name}")
+        elif rarity == "shiny":
+            msg = f"💎✨ SHINY!! @{username} baked a SHINY {item_display_name}! Unlocked a Badge! (+{points_gained} pts){critic_msg}{bake_sale_msg}"
+            self.log_callback(f"💎 {username} got a SHINY {item_display_name}")
+        elif rarity == "golden":
+            msg = f"🌟 MASTERPIECE! @{username} baked a GOLDEN {item_display_name}! (+{points_gained} pts){critic_msg}{bake_sale_msg}"
+            self.log_callback(f"🌟 {username} got a GOLDEN {item_display_name}")
         else:
-            await ctx.send(f"🍞 @{username} baked a {item_display_name}! ({new_rank_title}) | Score: {int(bake_score)}")
+            # Standard
+            if is_legendary_item:
+                msg = f"✨ @{username} baked a LEGENDARY {item_display_name}! (+{points_gained} pts){critic_msg}{bake_sale_msg}"
+                self.log_callback(f"✨ {username} baked a LEGENDARY {item_display_name}")
+            else:
+                msg = f"🍞 @{username} baked a {item_display_name}! (+{points_gained} pts){critic_msg}{bake_sale_msg}"
+                self.log_callback(f"🍞 {username} baked a {item_display_name}")
+                
+        msg += f" ({new_rank_title}) | Score: {int(bake_score)}"
+        await ctx.send(msg)
 
         message = {
             "event": "bake",
@@ -192,7 +361,8 @@ class BakeRankBot(commands.Bot):
             "rank": new_rank_title,
             "score": int(bake_score),
             "item": bake_item,
-            "is_legendary": is_legendary,
+            "is_legendary": is_legendary_item,
+            "rarity": rarity,
             "trigger_explosion": trigger_explosion,
             "ranked_up": ranked_up
         }
@@ -219,11 +389,46 @@ class BakeRankBot(commands.Bot):
             await ctx.send("No bakers yet.")
             return
         medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-        msg = " | ".join(
-            f"{medals[i]} {b['username']} ({b['title']}) - {b['score']}"
-            for i, b in enumerate(board)
-        )
+        
+        msg_parts = []
+        for i, b in enumerate(board):
+            username = b['username']
+            shinies = player_data[username].get('shinies', 0)
+            badge = "💎" if shinies > 0 else ""
+            msg_parts.append(f"{medals[i]} {username}{badge} ({b['title']}) - {b['score']}")
+            
+        msg = " | ".join(msg_parts)
         await ctx.send(msg)
+
+    async def start_rush_hour(self):
+        self.rush_hour_active = True
+        self.rush_hour_end_time = time.time() + 120 # 2 minutes
+        self.log_callback("🚀 Rush Hour started!")
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send("🚀 The Rush Hour has started! Cooldowns are reduced to 10 seconds for the next 2 minutes!")
+
+    async def start_bake_sale(self):
+        self.bake_sale_active = True
+        self.bake_sale_target = 150
+        self.bake_sale_current = 0
+        self.bake_sale_participants = set()
+        self.log_callback("🍪 Bake Sale started! Target: 150 Cookies")
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send("🍪 Catering Order: 150 Baked Goods needed! The Bake Sale has started! (Reward: Michelin Star)")
+
+    async def spawn_food_critic(self):
+        self.food_critic_active = True
+        # Pick a random item
+        items = get_available_baked_goods()
+        self.food_critic_craving = random.choice(items)
+        craving_name = format_item_name(self.food_critic_craving)
+        
+        self.log_callback(f"🧐 Food Critic arrived! Craving: {craving_name}")
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send(f"🧐 The Food Critic has entered the chat! They crave a {craving_name}. First to bake it gets a bonus!")
 
 # ============ BOT THREAD ============
 class BotThread(QThread):
@@ -396,6 +601,28 @@ class BakeRankGUI(QMainWindow):
         btn_layout.addWidget(self.test_legendary_btn)
         
         layout.addLayout(btn_layout)
+
+        # Events Group
+        events_group = QGroupBox("Events")
+        events_layout = QHBoxLayout()
+        
+        self.rush_hour_btn = QPushButton("🚀 Start Rush Hour")
+        self.rush_hour_btn.clicked.connect(self.trigger_rush_hour)
+        self.rush_hour_btn.setStyleSheet("background-color: #E91E63; color: white; font-weight: bold; padding: 8px;")
+        events_layout.addWidget(self.rush_hour_btn)
+        
+        self.bake_sale_btn = QPushButton("🍪 Start Bake Sale")
+        self.bake_sale_btn.clicked.connect(self.trigger_bake_sale)
+        self.bake_sale_btn.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold; padding: 8px;")
+        events_layout.addWidget(self.bake_sale_btn)
+        
+        self.food_critic_btn = QPushButton("🧐 Spawn Food Critic")
+        self.food_critic_btn.clicked.connect(self.trigger_food_critic)
+        self.food_critic_btn.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold; padding: 8px;")
+        events_layout.addWidget(self.food_critic_btn)
+        
+        events_group.setLayout(events_layout)
+        layout.addWidget(events_group)
         
         # Log Display
         log_group = QGroupBox("Activity Log")
@@ -535,6 +762,27 @@ class BakeRankGUI(QMainWindow):
             self.log("🛑 Closing application - stopping bot...")
             self.stop_bot()
         event.accept()
+
+    def trigger_rush_hour(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_rush_hour(), self.bot_thread.loop)
+            self.log("🚀 Triggered Rush Hour!")
+        else:
+            QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
+
+    def trigger_bake_sale(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_bake_sale(), self.bot_thread.loop)
+            self.log("🍪 Triggered Bake Sale!")
+        else:
+            QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
+
+    def trigger_food_critic(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.spawn_food_critic(), self.bot_thread.loop)
+            self.log("🧐 Triggered Food Critic!")
+        else:
+            QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
 
 # ============ MAIN ============
 if __name__ == "__main__":
