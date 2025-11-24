@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-                             QTextEdit, QGroupBox, QMessageBox)
+                             QTextEdit, QGroupBox, QMessageBox, QComboBox)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QFont
 import websockets
@@ -103,6 +103,8 @@ def choose_baked_good():
 def format_item_name(filename):
     """Convert filename to display name"""
     name = os.path.splitext(filename)[0]
+    if name.startswith("Legendary-"):
+        name = name.replace("Legendary-", "")
     return name.replace("_", " ").replace("-", " ").title()
 
 # ============ RANK SYSTEM ============
@@ -294,9 +296,10 @@ class BakeRankBot(commands.Bot):
         bake_item, is_legendary_item = choose_baked_good()
         item_display_name = format_item_name(bake_item)
         
-        # Legendary Bonus (Override points if legendary)
+        # Legendary Bonus (Override points if legendary, unless already higher)
         if is_legendary_item:
-            points_gained = 5
+            if points_gained < 5:
+                points_gained = 5
 
         # Food Critic Check
         critic_bonus = 0
@@ -599,6 +602,36 @@ class BakeRankGUI(QMainWindow):
         
         layout.addLayout(btn_layout)
 
+        # Test Controls Group
+        test_group = QGroupBox("Test Controls")
+        test_layout = QHBoxLayout()
+
+        # Rarity Dropdown
+        test_layout.addWidget(QLabel("Rarity:"))
+        self.rarity_combo = QComboBox()
+        self.rarity_combo.addItems(["Standard", "Burnt", "Shiny", "Golden", "Legendary"])
+        test_layout.addWidget(self.rarity_combo)
+
+        # Item Dropdown
+        test_layout.addWidget(QLabel("Item:"))
+        self.item_combo = QComboBox()
+        # Populate items
+        all_files = glob.glob(os.path.join(OVERLAY_FOLDER, "*.png"))
+        for f in all_files:
+            filename = os.path.basename(f)
+            display_name = format_item_name(filename)
+            self.item_combo.addItem(display_name, filename) # Store filename as user data
+        test_layout.addWidget(self.item_combo)
+
+        # Test Button
+        self.custom_test_btn = QPushButton("🧪 Test Custom")
+        self.custom_test_btn.clicked.connect(self.test_custom_bake)
+        self.custom_test_btn.setStyleSheet("background-color: #00BCD4; color: white; font-weight: bold; padding: 8px;")
+        test_layout.addWidget(self.custom_test_btn)
+
+        test_group.setLayout(test_layout)
+        layout.addWidget(test_group)
+
         # Events Group
         events_group = QGroupBox("Events")
         events_layout = QHBoxLayout()
@@ -691,6 +724,43 @@ class BakeRankGUI(QMainWindow):
         
         self.log("✅ Bot stopped")
         
+    def test_custom_bake(self):
+        rarity_text = self.rarity_combo.currentText().lower()
+        item_filename = self.item_combo.currentData()
+        
+        if not item_filename:
+            QMessageBox.warning(self, "No Item", "No baked goods found in overlay folder!")
+            return
+
+        is_legendary = False
+        rarity = "standard"
+
+        if rarity_text == "legendary":
+            is_legendary = True
+            rarity = "standard"
+        else:
+            rarity = rarity_text
+        
+        message = {
+            "event": "bake",
+            "user": "TEST_USER",
+            "rank": "Test Rank",
+            "score": 123,
+            "item": item_filename,
+            "is_legendary": is_legendary,
+            "rarity": rarity,
+            "trigger_explosion": True,
+            "ranked_up": False
+        }
+        
+        if rarity in ["shiny", "golden"] or is_legendary:
+            message["trigger_explosion"] = True
+        else:
+             message["trigger_explosion"] = False
+
+        asyncio.run(broadcast_to_overlays(message))
+        self.log(f"🧪 Custom Test: {rarity_text.upper()} {format_item_name(item_filename)}")
+
     def test_explosion(self):
         """Send test explosion to overlay (doesn't count toward scores)"""
         bake_item, is_legendary = choose_baked_good()

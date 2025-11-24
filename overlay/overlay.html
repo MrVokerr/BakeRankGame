@@ -53,7 +53,28 @@
         }
 
         .bake-item.shiny {
-            animation: bake-float 4s linear forwards, shiny-pulse 0.5s infinite alternate;
+            width: 250px;
+            height: 250px;
+            z-index: 999;
+            animation: bake-shoot-shiny 4s ease-out forwards, shiny-pulse 0.2s infinite alternate;
+        }
+
+        @keyframes bake-shoot-shiny {
+            0% {
+                transform: translateY(0) scale(0.5) rotate(0deg);
+                opacity: 1;
+            }
+            10% {
+                transform: translateY(-400px) scale(1.0) rotate(0deg);
+            }
+            80% {
+                transform: translateY(-500px) scale(1.2) rotate(10deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-800px) scale(1.5) rotate(-10deg);
+                opacity: 0;
+            }
         }
 
         @keyframes shiny-pulse {
@@ -185,7 +206,13 @@
             };
             
             // Random horizontal position
-            const randomX = Math.random() * (window.innerWidth - 100) + 50;
+            let randomX = Math.random() * (window.innerWidth - 100) + 50;
+            
+            // If shiny, force middle
+            if (data.rarity === 'shiny') {
+                randomX = (window.innerWidth / 2) - 125; // Center (half of 250px width)
+            }
+
             item.style.left = randomX + "px";
             item.style.bottom = "0px";
             
@@ -194,7 +221,9 @@
             // Trigger explosion if legendary or ranked up
             if (data.trigger_explosion) {
                 setTimeout(() => {
-                    triggerExplosion(randomX, -350);
+                    // Adjust explosion height for shiny
+                    const explosionY = (data.rarity === 'shiny') ? -500 : -350;
+                    triggerExplosion(randomX, explosionY);
                 }, 1500); // Explosion at peak
             }
 
