@@ -17,7 +17,7 @@ REM Try py launcher first
 py --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using py launcher...
-    py -m PyInstaller --onefile --windowed --name "BakeRankBot" --icon=NONE ^
+    py -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" --icon=NONE ^
         --add-data "overlay;overlay" ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
@@ -31,7 +31,7 @@ REM Try python
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using python...
-    python -m PyInstaller --onefile --windowed --name "BakeRankBot" --icon=NONE ^
+    python -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" --icon=NONE ^
         --add-data "overlay;overlay" ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
