@@ -8,9 +8,9 @@ import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-                             QTextEdit, QGroupBox, QMessageBox, QComboBox)
+                             QTextEdit, QGroupBox, QMessageBox, QComboBox, QGridLayout)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIntValidator
 import websockets
 from twitchio.ext import commands
 
@@ -19,93 +19,125 @@ DB_PATH = "bakerank_data.txt"
 OVERLAY_FOLDER = "overlay"
 COOLDOWN = 60
 
-# ============ TEXT FILE DATABASE ============
-def load_player_data():
-    """Load player data from text file"""
-    if not os.path.exists(DB_PATH):
-        return {}
-    
-    players = {}
-    try:
-        with open(DB_PATH, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                parts = line.split('|')
-                if len(parts) >= 3:
-                    username = parts[0].strip()
-                    bake_score = int(parts[1].strip())
-                    last_bake_time = float(parts[2].strip())
-                    
-                    # Default values for new fields
-                    luck = 0.0
-                    last_eat_time = 0.0
-                    michelin_stars = 0
-                    shinies = 0
-                    
-                    if len(parts) >= 7:
-                        luck = float(parts[3].strip())
-                        last_eat_time = float(parts[4].strip())
-                        michelin_stars = int(parts[5].strip())
-                        shinies = int(parts[6].strip())
-                    
-                    players[username] = {
-                        'bake_score': bake_score,
-                        'last_bake_time': last_bake_time,
-                        'luck': luck,
-                        'last_eat_time': last_eat_time,
-                        'michelin_stars': michelin_stars,
-                        'shinies': shinies
-                    }
-    except Exception as e:
-        print(f"⚠️ Warning: Could not load database: {e}")
-    return players
+# ============ OPTIMIZED MANAGERS ============
+class AssetManager:
+    def __init__(self, folder):
+        self.folder = folder
+        self._normal_items = []
+        self._legendary_items = []
+        self._last_scan = 0
+        self._scan_interval = 60  # Cache for 60 seconds
+        self.refresh()
 
-def save_player_data(players):
-    """Save player data to text file"""
-    try:
-        with open(DB_PATH, 'w', encoding='utf-8') as f:
-            f.write("# BakeRank Player Database - Edit with Notepad\n")
-            f.write("# Format: username | bake_score | last_bake_time | luck | last_eat_time | michelin_stars | shinies\n")
-            f.write("# WARNING: Keep the | separators intact!\n\n")
-            for username, data in sorted(players.items(), key=lambda x: x[1]['bake_score'], reverse=True):
-                f.write(f"{username} | {data['bake_score']} | {data['last_bake_time']} | {data.get('luck', 0.0)} | {data.get('last_eat_time', 0.0)} | {data.get('michelin_stars', 0)} | {data.get('shinies', 0)}\n")
-    except Exception as e:
-        print(f"❌ Error saving database: {e}")
+    def _scan_if_needed(self):
+        if time.time() - self._last_scan > self._scan_interval:
+            self.refresh()
 
-player_data = load_player_data()
+    def refresh(self):
+        if not os.path.exists(self.folder):
+            self._normal_items = ["croissant.png", "donut.png", "Pancakes.png"]
+            self._legendary_items = []
+            return
+
+        png_files = glob.glob(os.path.join(self.folder, "*.png"))
+        
+        self._legendary_items = [os.path.basename(f) for f in png_files if os.path.basename(f).startswith("Legendary-")]
+        
+        normals = [os.path.basename(f) for f in png_files if not os.path.basename(f).startswith("Legendary-")]
+        self._normal_items = normals if normals else ["croissant.png", "donut.png", "Pancakes.png"]
+        
+        self._last_scan = time.time()
+
+    @property
+    def normal_items(self):
+        self._scan_if_needed()
+        return self._normal_items
+
+    @property
+    def legendary_items(self):
+        self._scan_if_needed()
+        return self._legendary_items
+
+class PlayerDatabase:
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.players = {}
+        self.load()
+
+    def load(self):
+        if not os.path.exists(self.filepath):
+            return
+        
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    parts = line.split('|')
+                    if len(parts) >= 3:
+                        username = parts[0].strip()
+                        try:
+                            self.players[username] = {
+                                'bake_score': int(parts[1].strip()),
+                                'last_bake_time': float(parts[2].strip()),
+                                'luck': float(parts[3].strip()) if len(parts) >= 4 else 0.0,
+                                'last_eat_time': float(parts[4].strip()) if len(parts) >= 5 else 0.0,
+                                'michelin_stars': int(parts[5].strip()) if len(parts) >= 6 else 0,
+                                'shinies': int(parts[6].strip()) if len(parts) >= 7 else 0
+                            }
+                        except ValueError:
+                            continue
+        except Exception as e:
+            print(f"⚠️ Warning: Could not load database: {e}")
+
+    def save_blocking(self):
+        """Blocking save for use in executor"""
+        try:
+            with open(self.filepath, 'w', encoding='utf-8') as f:
+                f.write("# BakeRank Player Database - Edit with Notepad\n")
+                f.write("# Format: username | bake_score | last_bake_time | luck | last_eat_time | michelin_stars | shinies\n")
+                f.write("# WARNING: Keep the | separators intact!\n\n")
+                
+                sorted_players = sorted(self.players.items(), key=lambda x: x[1]['bake_score'], reverse=True)
+                for username, data in sorted_players:
+                    f.write(f"{username} | {data['bake_score']} | {data['last_bake_time']} | "
+                            f"{data.get('luck', 0.0)} | {data.get('last_eat_time', 0.0)} | "
+                            f"{data.get('michelin_stars', 0)} | {data.get('shinies', 0)}\n")
+                
+        except Exception as e:
+            print(f"❌ Error saving database: {e}")
+
+    async def save(self):
+        """Async save wrapper"""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.save_blocking)
+
+# Initialize Managers
+asset_manager = AssetManager(OVERLAY_FOLDER)
+db = PlayerDatabase(DB_PATH)
+player_data = db.players
 
 # ============ BAKED GOODS HELPERS ============
-def get_available_baked_goods():
-    """Scan overlay folder for normal PNG files"""
-    png_files = glob.glob(os.path.join(OVERLAY_FOLDER, "*.png"))
-    if not png_files:
-        return ["croissant.png", "donut.png", "Pancakes.png"]
-    normal_items = [os.path.basename(f) for f in png_files if not os.path.basename(f).startswith("Legendary-")]
-    return normal_items if normal_items else [os.path.basename(f) for f in png_files]
-
-def get_legendary_baked_goods():
-    """Get legendary baked goods"""
-    png_files = glob.glob(os.path.join(OVERLAY_FOLDER, "Legendary-*.png"))
-    return [os.path.basename(f) for f in png_files]
-
 def choose_baked_good():
     """Choose a baked good with 1% legendary chance"""
-    legendary_items = get_legendary_baked_goods()
-    normal_items = get_available_baked_goods()
+    legendary = asset_manager.legendary_items
+    normal = asset_manager.normal_items
     
-    if legendary_items and random.random() < 0.01:
-        return random.choice(legendary_items), True
+    if legendary and random.random() < 0.01:
+        return random.choice(legendary), True
     else:
-        return random.choice(normal_items), False
+        return random.choice(normal), False
 
 def format_item_name(filename):
     """Convert filename to display name"""
     name = os.path.splitext(filename)[0]
-    if name.startswith("Legendary-"):
-        name = name.replace("Legendary-", "")
-    return name.replace("_", " ").replace("-", " ").title()
+    # Case-insensitive removal of prefix
+    lower_name = name.lower()
+    if lower_name.startswith("legendary-") or lower_name.startswith("legendary_") or lower_name.startswith("legendary "):
+        name = name[10:]
+        
+    return name.replace("_", " ").replace("-", " ").strip().title()
 
 # ============ RANK SYSTEM ============
 RANKS = [
@@ -151,10 +183,11 @@ async def start_overlay_server():
 
 # ============ TWITCH BOT ============
 class BakeRankBot(commands.Bot):
-    def __init__(self, token, channel, log_callback):
+    def __init__(self, token, channel, log_callback, status_callback):
         super().__init__(token=token, prefix="!", initial_channels=[channel])
         self.token = token
         self.log_callback = log_callback
+        self.status_callback = status_callback
         self.channel_name = channel
         
         # Event States
@@ -164,17 +197,83 @@ class BakeRankBot(commands.Bot):
         self.bake_sale_active = False
         self.bake_sale_target = 0
         self.bake_sale_current = 0
+        self.bake_sale_end_time = 0
         self.bake_sale_participants = set()
         
         self.food_critic_active = False
         self.food_critic_craving = None
+        self.food_critic_end_time = 0
 
     async def event_ready(self):
         self.log_callback(f"✅ Bot logged in as {self.nick}")
         self.log_callback(f"📺 Connected to channel: {self.channel_name}")
         self.log_callback(f"🎮 Commands: !bake, !TopBakers")
-        
         self.log_callback("-" * 50)
+        self.loop.create_task(self.game_loop())
+
+    def _send_status_update(self):
+        """Helper to send current event status to GUI"""
+        try:
+            now = time.time()
+            status = {
+                "rush_hour_active": self.rush_hour_active,
+                "rush_hour_remaining": int(max(0, self.rush_hour_end_time - now)) if self.rush_hour_active else 0,
+                "bake_sale_active": self.bake_sale_active,
+                "bake_sale_remaining": int(max(0, self.bake_sale_end_time - now)) if self.bake_sale_active else 0,
+                "bake_sale_progress": f"{self.bake_sale_current}/{self.bake_sale_target}" if self.bake_sale_active else "Inactive",
+                "food_critic_active": self.food_critic_active,
+                "food_critic_craving": format_item_name(self.food_critic_craving) if self.food_critic_active else "None",
+                "food_critic_remaining": int(max(0, self.food_critic_end_time - now)) if self.food_critic_active else 0
+            }
+            if self.status_callback:
+                self.status_callback(status)
+        except Exception as e:
+            print(f"Status Update Error: {e}")
+
+    async def game_loop(self):
+        """Background task to check event timers and update GUI"""
+        while True:
+            try:
+                now = time.time()
+                channel = self.get_channel(self.channel_name)
+
+                # Check Rush Hour Expiry
+                if self.rush_hour_active and now > self.rush_hour_end_time:
+                    self.rush_hour_active = False
+                    self.log_callback("🛑 Rush Hour ended!")
+                    if channel:
+                        await channel.send("🛑 The Rush Hour has ended! Cooldowns are back to normal.")
+                    self._send_status_update()
+
+                # Check Bake Sale Expiry (Failure)
+                if self.bake_sale_active and now > self.bake_sale_end_time:
+                    self.bake_sale_active = False
+                    self.log_callback("😞 Bake Sale Failed (Time out)")
+                    if channel:
+                        await channel.send(f"😞 The Bake Sale ended! We only sold {self.bake_sale_current}/{self.bake_sale_target}. No stars awarded.")
+                    self._send_status_update()
+
+                # Check Food Critic Expiry
+                if self.food_critic_active and now > self.food_critic_end_time:
+                    self.food_critic_active = False
+                    self.food_critic_craving = None
+                    self.log_callback("😒 Food Critic left (Time out)")
+                    if channel:
+                        await channel.send("😒 The Food Critic got tired of waiting and left!")
+                    self._send_status_update()
+
+                # Send Status Update to GUI
+                self._send_status_update()
+
+                # Dynamic sleep: 1s if active, 5s if inactive to save resources
+                if self.rush_hour_active or self.bake_sale_active or self.food_critic_active:
+                    await asyncio.sleep(1)
+                else:
+                    await asyncio.sleep(5)
+
+            except Exception as e:
+                print(f"Game Loop Error: {e}")
+                await asyncio.sleep(5)
 
     @commands.command(name="eat")
     async def eat(self, ctx):
@@ -218,7 +317,7 @@ class BakeRankBot(commands.Bot):
         player_data[username]['luck'] = new_luck
         player_data[username]['last_eat_time'] = now
         
-        save_player_data(player_data)
+        await db.save()
         
         await ctx.send(f"🍽️ @{username} ate {amount} points! Luck increased by {int(added_luck)}% (Total: {int(new_luck)}%). Good luck on your next bake!")
 
@@ -251,12 +350,7 @@ class BakeRankBot(commands.Bot):
         
         # Check Rush Hour
         if self.rush_hour_active:
-            if now > self.rush_hour_end_time:
-                self.rush_hour_active = False
-                self.log_callback("🛑 Rush Hour ended!")
-                await ctx.send("🛑 The Rush Hour has ended! Cooldowns are back to normal.")
-            else:
-                cooldown_time = 10 # Reduced cooldown
+            cooldown_time = 10 # Reduced cooldown
         
         if now - last_bake_time < cooldown_time:
             remaining = int(cooldown_time - (now - last_bake_time))
@@ -311,13 +405,14 @@ class BakeRankBot(commands.Bot):
             self.food_critic_craving = None
             critic_msg = " 🧐 THE CRITIC IS PLEASED! (+50 Bonus)"
             self.log_callback(f"🧐 {username} satisfied the Food Critic!")
+            self._send_status_update()
 
         bake_score += points_gained
         new_rank_title = get_rank_title(bake_score)
 
         player_data[username]['bake_score'] = bake_score
         player_data[username]['last_bake_time'] = now
-        save_player_data(player_data)
+        await db.save()
 
         ranked_up = old_rank_title != new_rank_title
         
@@ -337,9 +432,10 @@ class BakeRankBot(commands.Bot):
                 for participant in self.bake_sale_participants:
                     if participant in player_data:
                         player_data[participant]['michelin_stars'] = player_data[participant].get('michelin_stars', 0) + 1
-                save_player_data(player_data)
+                await db.save()
             elif self.bake_sale_current % 10 == 0: # Notify every 10 items
                  bake_sale_msg = f" (Bake Sale: {self.bake_sale_current}/{self.bake_sale_target})"
+            self._send_status_update()
 
         # Construct Message
         msg = ""
@@ -409,40 +505,92 @@ class BakeRankBot(commands.Bot):
         msg = " | ".join(msg_parts)
         await ctx.send(msg)
 
-    async def start_rush_hour(self):
+    async def start_rush_hour(self, duration_minutes=2):
+        if self.rush_hour_active:
+            self.log_callback("⚠️ Rush Hour already active!")
+            return
+            
         self.rush_hour_active = True
-        self.rush_hour_end_time = time.time() + 120 # 2 minutes
-        self.log_callback("🚀 Rush Hour started!")
+        duration_seconds = duration_minutes * 60
+        self.rush_hour_end_time = time.time() + duration_seconds
+        self.log_callback(f"🚀 Rush Hour started! ({duration_minutes} mins)")
+        self._send_status_update()
         channel = self.get_channel(self.channel_name)
         if channel:
-            await channel.send("🚀 The Rush Hour has started! Cooldowns are reduced to 10 seconds for the next 2 minutes!")
+            await channel.send(f"🚀 The Rush Hour has started! Cooldowns are reduced to 10 seconds for the next {duration_minutes} minutes!")
 
-    async def start_bake_sale(self):
+    async def stop_rush_hour(self):
+        if not self.rush_hour_active:
+            return
+        self.rush_hour_active = False
+        self.log_callback("🛑 Rush Hour stopped manually.")
+        self._send_status_update()
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send("🛑 The Rush Hour has been stopped manually.")
+
+    async def start_bake_sale(self, duration_minutes=20):
+        if self.bake_sale_active:
+            self.log_callback("⚠️ Bake Sale already active!")
+            return
+
         self.bake_sale_active = True
         self.bake_sale_target = 150
         self.bake_sale_current = 0
+        duration_seconds = duration_minutes * 60
+        self.bake_sale_end_time = time.time() + duration_seconds
         self.bake_sale_participants = set()
-        self.log_callback("🍪 Bake Sale started! Target: 150 Cookies")
+        self.log_callback(f"🍪 Bake Sale started! Target: 150 Cookies ({duration_minutes} mins)")
+        self._send_status_update()
         channel = self.get_channel(self.channel_name)
         if channel:
-            await channel.send("🍪 Catering Order: 150 Baked Goods needed! The Bake Sale has started! (Reward: Michelin Star)")
+            await channel.send(f"🍪 Catering Order: 150 Baked Goods needed! The Bake Sale has started! You have {duration_minutes} minutes! (Reward: Michelin Star)")
 
-    async def spawn_food_critic(self):
+    async def stop_bake_sale(self):
+        if not self.bake_sale_active:
+            return
+        self.bake_sale_active = False
+        self.log_callback("🛑 Bake Sale stopped manually.")
+        self._send_status_update()
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send("🛑 The Bake Sale has been stopped manually.")
+
+    async def spawn_food_critic(self, duration_minutes=10):
+        if self.food_critic_active:
+            self.log_callback("⚠️ Food Critic already here!")
+            return
+
         self.food_critic_active = True
+        duration_seconds = duration_minutes * 60
+        self.food_critic_end_time = time.time() + duration_seconds
         # Pick a random item
-        items = get_available_baked_goods()
+        items = asset_manager.normal_items
         self.food_critic_craving = random.choice(items)
         craving_name = format_item_name(self.food_critic_craving)
         
-        self.log_callback(f"🧐 Food Critic arrived! Craving: {craving_name}")
+        self.log_callback(f"🧐 Food Critic arrived! Craving: {craving_name} ({duration_minutes} mins)")
+        self._send_status_update()
         channel = self.get_channel(self.channel_name)
         if channel:
             await channel.send(f"🧐 The Food Critic has entered the chat! They crave a {craving_name}. First to bake it gets a bonus!")
+
+    async def stop_food_critic(self):
+        if not self.food_critic_active:
+            return
+        self.food_critic_active = False
+        self.food_critic_craving = None
+        self.log_callback("🛑 Food Critic left manually.")
+        self._send_status_update()
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send("🛑 The Food Critic has left the chat.")
 
 # ============ BOT THREAD ============
 class BotThread(QThread):
     log_signal = pyqtSignal(str)
     error_signal = pyqtSignal(str)
+    status_signal = pyqtSignal(dict)
     
     def __init__(self, token, channel):
         super().__init__()
@@ -453,6 +601,9 @@ class BotThread(QThread):
         
     def log(self, message):
         self.log_signal.emit(message)
+
+    def update_status(self, status):
+        self.status_signal.emit(status)
         
     def run(self):
         try:
@@ -464,7 +615,7 @@ class BotThread(QThread):
             self.log("🍞 Overlay server started on ws://localhost:8765")
             
             # Start bot
-            self.bot = BakeRankBot(self.token, self.channel, self.log)
+            self.bot = BakeRankBot(self.token, self.channel, self.log, self.update_status)
             bot_task = self.loop.create_task(self.bot.start())
             
             self.loop.run_until_complete(asyncio.gather(overlay_task, bot_task))
@@ -484,7 +635,7 @@ class BakeRankGUI(QMainWindow):
         self.init_ui()
         
     def init_ui(self):
-        self.setWindowTitle("BakeRank Bot - GUI Edition")
+        self.setWindowTitle("Bake Rank")
         self.setGeometry(100, 100, 700, 600)
         
         # Dark mode stylesheet
@@ -603,7 +754,7 @@ class BakeRankGUI(QMainWindow):
         layout.addLayout(btn_layout)
 
         # Test Controls Group
-        test_group = QGroupBox("Test Controls")
+        test_group = QGroupBox("Test")
         test_layout = QHBoxLayout()
 
         # Rarity Dropdown
@@ -616,15 +767,14 @@ class BakeRankGUI(QMainWindow):
         test_layout.addWidget(QLabel("Item:"))
         self.item_combo = QComboBox()
         # Populate items
-        all_files = glob.glob(os.path.join(OVERLAY_FOLDER, "*.png"))
-        for f in all_files:
-            filename = os.path.basename(f)
+        all_items = asset_manager.normal_items + asset_manager.legendary_items
+        for filename in all_items:
             display_name = format_item_name(filename)
             self.item_combo.addItem(display_name, filename) # Store filename as user data
         test_layout.addWidget(self.item_combo)
 
         # Test Button
-        self.custom_test_btn = QPushButton("🧪 Test Custom")
+        self.custom_test_btn = QPushButton("🧪 Test")
         self.custom_test_btn.clicked.connect(self.test_custom_bake)
         self.custom_test_btn.setStyleSheet("background-color: #00BCD4; color: white; font-weight: bold; padding: 8px;")
         test_layout.addWidget(self.custom_test_btn)
@@ -634,25 +784,98 @@ class BakeRankGUI(QMainWindow):
 
         # Events Group
         events_group = QGroupBox("Events")
-        events_layout = QHBoxLayout()
+        events_layout = QGridLayout()
         
-        self.rush_hour_btn = QPushButton("🚀 Start Rush Hour")
+        # Validators
+        int_validator = QIntValidator(1, 9999)
+
+        # Rush Hour
+        events_layout.addWidget(QLabel("🚀 Rush Hour"), 0, 0)
+        self.rh_duration = QLineEdit("2")
+        self.rh_duration.setValidator(int_validator)
+        self.rh_duration.setFixedWidth(50)
+        self.rh_duration.setPlaceholderText("Min")
+        events_layout.addWidget(self.rh_duration, 0, 1)
+        
+        self.rush_hour_btn = QPushButton("Start")
         self.rush_hour_btn.clicked.connect(self.trigger_rush_hour)
-        self.rush_hour_btn.setStyleSheet("background-color: #E91E63; color: white; font-weight: bold; padding: 8px;")
-        events_layout.addWidget(self.rush_hour_btn)
+        self.rush_hour_btn.setStyleSheet("background-color: #E91E63; color: white; font-weight: bold;")
+        events_layout.addWidget(self.rush_hour_btn, 0, 2)
+
+        self.stop_rh_btn = QPushButton("Stop")
+        self.stop_rh_btn.clicked.connect(self.stop_rush_hour)
+        self.stop_rh_btn.setStyleSheet("background-color: #555; color: white;")
+        events_layout.addWidget(self.stop_rh_btn, 0, 3)
         
-        self.bake_sale_btn = QPushButton("🍪 Start Bake Sale")
+        # Bake Sale
+        events_layout.addWidget(QLabel("🍪 Bake Sale"), 1, 0)
+        self.bs_duration = QLineEdit("20")
+        self.bs_duration.setValidator(int_validator)
+        self.bs_duration.setFixedWidth(50)
+        self.bs_duration.setPlaceholderText("Min")
+        events_layout.addWidget(self.bs_duration, 1, 1)
+
+        self.bake_sale_btn = QPushButton("Start")
         self.bake_sale_btn.clicked.connect(self.trigger_bake_sale)
-        self.bake_sale_btn.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold; padding: 8px;")
-        events_layout.addWidget(self.bake_sale_btn)
+        self.bake_sale_btn.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold;")
+        events_layout.addWidget(self.bake_sale_btn, 1, 2)
+
+        self.stop_bs_btn = QPushButton("Stop")
+        self.stop_bs_btn.clicked.connect(self.stop_bake_sale)
+        self.stop_bs_btn.setStyleSheet("background-color: #555; color: white;")
+        events_layout.addWidget(self.stop_bs_btn, 1, 3)
         
-        self.food_critic_btn = QPushButton("🧐 Spawn Food Critic")
+        # Food Critic
+        events_layout.addWidget(QLabel("🧐 Food Critic"), 2, 0)
+        self.fc_duration = QLineEdit("10")
+        self.fc_duration.setValidator(int_validator)
+        self.fc_duration.setFixedWidth(50)
+        self.fc_duration.setPlaceholderText("Min")
+        events_layout.addWidget(self.fc_duration, 2, 1)
+
+        self.food_critic_btn = QPushButton("Start")
         self.food_critic_btn.clicked.connect(self.trigger_food_critic)
-        self.food_critic_btn.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold; padding: 8px;")
-        events_layout.addWidget(self.food_critic_btn)
+        self.food_critic_btn.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold;")
+        events_layout.addWidget(self.food_critic_btn, 2, 2)
+
+        self.stop_fc_btn = QPushButton("Stop")
+        self.stop_fc_btn.clicked.connect(self.stop_food_critic)
+        self.stop_fc_btn.setStyleSheet("background-color: #555; color: white;")
+        events_layout.addWidget(self.stop_fc_btn, 2, 3)
         
         events_group.setLayout(events_layout)
         layout.addWidget(events_group)
+
+        # Active Events Status Group
+        status_group = QGroupBox("Active Events Status")
+        status_layout = QHBoxLayout()
+
+        # Rush Hour Status
+        rh_layout = QVBoxLayout()
+        rh_layout.addWidget(QLabel("🚀 Rush Hour"))
+        self.rh_status_label = QLabel("Inactive")
+        self.rh_status_label.setStyleSheet("color: #888;")
+        rh_layout.addWidget(self.rh_status_label)
+        status_layout.addLayout(rh_layout)
+
+        # Bake Sale Status
+        bs_layout = QVBoxLayout()
+        bs_layout.addWidget(QLabel("🍪 Bake Sale"))
+        self.bs_status_label = QLabel("Inactive")
+        self.bs_status_label.setStyleSheet("color: #888;")
+        bs_layout.addWidget(self.bs_status_label)
+        status_layout.addLayout(bs_layout)
+
+        # Food Critic Status
+        fc_layout = QVBoxLayout()
+        fc_layout.addWidget(QLabel("🧐 Food Critic"))
+        self.fc_status_label = QLabel("Inactive")
+        self.fc_status_label.setStyleSheet("color: #888;")
+        fc_layout.addWidget(self.fc_status_label)
+        status_layout.addLayout(fc_layout)
+
+        status_group.setLayout(status_layout)
+        layout.addWidget(status_group)
         
         # Log Display
         log_group = QGroupBox("Activity Log")
@@ -711,6 +934,7 @@ class BakeRankGUI(QMainWindow):
         self.bot_thread = BotThread(token, channel)
         self.bot_thread.log_signal.connect(self.log)
         self.bot_thread.error_signal.connect(self.show_error)
+        self.bot_thread.status_signal.connect(self.update_status_display)
         self.bot_thread.start()
         
         self.start_btn.setEnabled(False)
@@ -723,6 +947,35 @@ class BakeRankGUI(QMainWindow):
             self.bot_thread = None
         
         self.log("✅ Bot stopped")
+        self.start_btn.setEnabled(True)
+        self.rh_status_label.setText("Inactive")
+        self.bs_status_label.setText("Inactive")
+        self.fc_status_label.setText("Inactive")
+
+    def update_status_display(self, status):
+        # Rush Hour
+        if status["rush_hour_active"]:
+            self.rh_status_label.setText(f"ACTIVE\nTime: {status['rush_hour_remaining']}s")
+            self.rh_status_label.setStyleSheet("color: #E91E63; font-weight: bold;")
+        else:
+            self.rh_status_label.setText("Inactive")
+            self.rh_status_label.setStyleSheet("color: #888;")
+
+        # Bake Sale
+        if status["bake_sale_active"]:
+            self.bs_status_label.setText(f"ACTIVE\nProgress: {status['bake_sale_progress']}\nTime: {status['bake_sale_remaining']}s")
+            self.bs_status_label.setStyleSheet("color: #9C27B0; font-weight: bold;")
+        else:
+            self.bs_status_label.setText("Inactive")
+            self.bs_status_label.setStyleSheet("color: #888;")
+
+        # Food Critic
+        if status["food_critic_active"]:
+            self.fc_status_label.setText(f"ACTIVE\nCraving: {status['food_critic_craving']}\nTime: {status['food_critic_remaining']}s")
+            self.fc_status_label.setStyleSheet("color: #607D8B; font-weight: bold;")
+        else:
+            self.fc_status_label.setText("Inactive")
+            self.fc_status_label.setStyleSheet("color: #888;")
         
     def test_custom_bake(self):
         rarity_text = self.rarity_combo.currentText().lower()
@@ -782,7 +1035,7 @@ class BakeRankGUI(QMainWindow):
     
     def test_legendary(self):
         """Send test legendary bake to overlay (doesn't count toward scores)"""
-        legendary_items = get_legendary_baked_goods()
+        legendary_items = asset_manager.legendary_items
         
         if not legendary_items:
             self.log("⚠️ No legendary items found! Add Legendary-*.png files to overlay folder.")
@@ -831,24 +1084,51 @@ class BakeRankGUI(QMainWindow):
 
     def trigger_rush_hour(self):
         if self.bot_thread and self.bot_thread.bot:
-            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_rush_hour(), self.bot_thread.loop)
-            self.log("🚀 Triggered Rush Hour!")
+            try:
+                duration = int(self.rh_duration.text())
+            except ValueError:
+                duration = 2
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_rush_hour(duration), self.bot_thread.loop)
+            self.log(f"🚀 Triggered Rush Hour ({duration} mins)!")
         else:
             QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
+
+    def stop_rush_hour(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.stop_rush_hour(), self.bot_thread.loop)
+            self.log("🛑 Stopped Rush Hour!")
 
     def trigger_bake_sale(self):
         if self.bot_thread and self.bot_thread.bot:
-            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_bake_sale(), self.bot_thread.loop)
-            self.log("🍪 Triggered Bake Sale!")
+            try:
+                duration = int(self.bs_duration.text())
+            except ValueError:
+                duration = 20
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_bake_sale(duration), self.bot_thread.loop)
+            self.log(f"🍪 Triggered Bake Sale ({duration} mins)!")
         else:
             QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
 
+    def stop_bake_sale(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.stop_bake_sale(), self.bot_thread.loop)
+            self.log("🛑 Stopped Bake Sale!")
+
     def trigger_food_critic(self):
         if self.bot_thread and self.bot_thread.bot:
-            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.spawn_food_critic(), self.bot_thread.loop)
-            self.log("🧐 Triggered Food Critic!")
+            try:
+                duration = int(self.fc_duration.text())
+            except ValueError:
+                duration = 10
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.spawn_food_critic(duration), self.bot_thread.loop)
+            self.log(f"🧐 Triggered Food Critic ({duration} mins)!")
         else:
             QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
+
+    def stop_food_critic(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.stop_food_critic(), self.bot_thread.loop)
+            self.log("🛑 Stopped Food Critic!")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

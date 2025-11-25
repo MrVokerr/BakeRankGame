@@ -1,64 +1,72 @@
-# BakeRank Bot - Complete Setup Guide
+# BakeRank Bot - Streamer Edition 🍞
 
 ## 🎮 What is BakeRank?
-An interactive Twitch stream game where viewers bake virtual pastries, climb ranks, and trigger animations on your stream overlay!
+An interactive Twitch stream game where viewers bake virtual pastries, climb ranks, and trigger animations on your stream overlay! 
+
+**Optimized for Streamers:** Designed to run lightly in the background without affecting your gaming performance.
 
 ---
 
-## 📦 NEW: GUI Version (Standalone EXE)
+## 🚀 Quick Start (GUI Version)
 
-### For Users (No Python Required):
-1. Run `BakeRankBot.exe` from the `dist` folder
+### 1. Setup
+1. Run `BakeRankBot.exe` (Found in the main folder).
 2. Enter your credentials:
-   - **OAuth Token**: Get from https://twitchtokengenerator.com/
-   - **Channel Name**: Your Twitch username
-3. Click "💾 Save Configuration"
-4. Click "▶ Start Bot"
-5. Add overlay to OBS: Browser Source → `http://localhost:8765`
+   - **OAuth Token**: Get from [TwitchTokenGenerator](https://twitchtokengenerator.com/) (Select 'Custom Scope' -> enable `chat:read` and `chat:edit`).
+   - **Channel Name**: Your Twitch username.
+3. Click **"💾 Save Configuration"**.
+4. Click **"▶ Start Bot"**.
 
-### For Developers (Building the EXE):
-1. Run `install_requirements.bat` (installs PyQt5, TwitchIO, etc.)
-2. Run `build_exe.bat` (creates standalone .exe in `dist` folder)
-3. Distribute `BakeRankBot.exe` + `overlay` folder to users
-
----
-
-## 🔧 Original Terminal Version Setup
-
-### Step 1: Install Dependencies
-Double-click `install_requirements.bat` or run:
-```
-py -m pip install twitchio==2.9.1 websockets
-```
-
-### Step 2: Configure Bot
-Edit `bakerank_bot.py` and set:
-- `TOKEN` - Your OAuth token
-- `CHANNEL` - Your channel name
-
-### Step 3: Run Bot
-Double-click `bakerank_bot.py` or run:
-```
-py bakerank_bot.py
-```
+### 2. Overlay Setup (OBS/Streamlabs)
+1. Add a **Browser Source**.
+2. Set URL to: `http://localhost:8765/overlay.html` (or point to the local file `overlay/overlay.html`).
+3. Set Width/Height to your canvas size (e.g., 1920x1080).
+4. Check "Shutdown source when not visible" and "Refresh browser when scene becomes active".
 
 ---
 
-## 🎨 Adding Custom Baked Goods
+## 🎛️ GUI Controls
 
-1. Add PNG images to the `overlay` folder
-2. For **normal items**: Name them anything (e.g., `donut.png`, `cookie.png`)
-3. For **legendary items** (1% chance): Name with `Legendary-` prefix (e.g., `Legendary-GoldenCake.png`)
+The new interface gives you full control over the game:
 
-Bot automatically detects all PNG files!
+### **Events Control Panel**
+Trigger special events to boost engagement. You can now set custom durations (in minutes) for each event!
+
+*   **🚀 Rush Hour**: Reduces bake cooldowns to 10 seconds.
+    *   *Input:* Duration in minutes.
+    *   *Action:* Click **Start** to begin, **Stop** to end early.
+*   **🍪 Bake Sale**: Community challenge to bake X items total.
+    *   *Input:* Duration in minutes (Default: 20).
+    *   *Action:* Participants get a **Michelin Star ⭐** if the goal is met.
+*   **🧐 Food Critic**: The critic craves a specific item.
+    *   *Input:* Duration in minutes.
+    *   *Action:* First person to bake the craving gets a **+50 Point Bonus**.
+
+### **Test Lab**
+Test your overlay alerts without affecting player scores.
+*   **Rarity**: Choose from Standard, Burnt, Shiny, Golden, or Legendary.
+*   **Item**: Select any image from your overlay folder.
+*   **Test Button**: Triggers the alert on stream immediately.
 
 ---
 
-## 🎮 Twitch Commands
+## 🎨 Customizing Baked Goods
 
-- **!bake** - Bake a pastry, gain points, chance for rare items
-- **!eat [amount]** - Consume points to increase Luck for your next bake (e.g., `!eat 5`)
-- **!TopBakers** - Show top 5 bakers and shiny badges
+1. Open the `overlay` folder.
+2. **Normal Items**: Add any `.png` image (e.g., `croissant.png`, `bagel.png`).
+3. **Legendary Items**: Add images with the prefix `Legendary-` (e.g., `Legendary-WeddingCake.png`).
+    *   *Note:* The bot automatically strips "Legendary-" from the name in chat (e.g., "Wedding Cake").
+    *   *Chance:* Viewers have a base 1% chance to bake these.
+
+---
+
+## 🎮 Twitch Commands for Viewers
+
+- **!bake** - Bake a pastry! Cooldown: 60s (10s during Rush Hour).
+- **!eat [amount]** - Eat points to gain **Luck**.
+    *   *1 Point = 5% Luck*.
+    *   Higher luck increases chances for **Shiny** and **Golden** items on the *next* bake.
+- **!TopBakers** - Displays the top 5 leaderboard in chat.
 
 ---
 
@@ -78,26 +86,34 @@ Bot automatically detects all PNG files!
 
 ---
 
-## 🎲 Rarity & Economy
+## 🛠️ For Developers / Building from Source
 
-Every bake has a chance for special qualities!
+If you want to modify the code and rebuild the EXE:
 
-- **🔥 Burnt (5%)**: 0 Points. You fell asleep!
-- **🥐 Standard**: 1 Point. Normal bake.
-- **✨ Golden (5%)**: 3 Points. Masterpiece!
-- **👑 Legendary (1%)**: 5 Points. Rare item drop!
-- **💎 Shiny (0.1%)**: 10 Points + Badge. Ultra rare!
+1. **Install Python 3.x**.
+2. **Install Dependencies**:
+   ```bat
+   install_requirements.bat
+   ```
+3. **Build EXE**:
+   ```bat
+   build_exe.bat
+   ```
+   *   This will compile the code, optimize assets, and place `BakeRankBot.exe` in the root folder.
+   *   It automatically cleans up build artifacts.
 
-### Luck System
-Use **!eat [amount]** to trade points for Luck.
-- 1 Point = +5% Luck
-- Higher luck increases chances for **Golden** and **Shiny** items on your next bake.
+### ⚡ Performance Notes
+*   **Resource Optimization**: The bot uses a dynamic sleep cycle. It sleeps for 5 seconds when idle and switches to 1-second checks only when events are active.
+*   **Asset Caching**: Images are cached to prevent disk lag during gameplay.
+*   **Async I/O**: Database saves are non-blocking to ensure zero frame drops.
 
 ---
 
-## 🚨 Live Events
-
-Trigger these from the GUI to engage your chat!
+## 📂 File Structure
+*   `BakeRankBot.exe` - The main application.
+*   `bakerank_data.txt` - Player database (Do not edit while bot is running).
+*   `bakerank_config.json` - Saves your token/channel.
+*   `overlay/` - Folder for your images and the HTML overlay.
 
 - **🚀 Rush Hour**: Cooldowns reduced to 10s for 2 minutes.
 - **🍪 Bake Sale**: Community goal (150 items). Reward: **Michelin Star** ⭐.

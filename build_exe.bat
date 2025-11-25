@@ -11,7 +11,17 @@ echo Cleaning up previous builds...
 if exist "build" rd /s /q "build"
 if exist "dist" rd /s /q "dist"
 if exist "BakeRankBot.spec" del "BakeRankBot.spec"
-if exist "BakeRankBot.exe" del "BakeRankBot.exe"
+if exist "BakeRankBot.exe" (
+    del "BakeRankBot.exe"
+    if exist "BakeRankBot.exe" (
+        echo.
+        echo ERROR: Cannot delete BakeRankBot.exe. Is it still running?
+        echo Please close the bot and try again.
+        echo.
+        pause
+        exit /b 1
+    )
+)
 
 echo.
 echo Building executable...
@@ -59,20 +69,20 @@ exit /b 1
 echo.
 echo Moving executable to root folder...
 if exist "dist\BakeRankBot.exe" (
-    move /Y "dist\BakeRankBot.exe" ".\BakeRankBot.exe"
+    move /Y "dist\BakeRankBot.exe" "%~dp0BakeRankBot.exe"
     echo.
     echo Cleaning up build folders...
-    rd /s /q "build"
-    rd /s /q "dist"
-    del "BakeRankBot.spec"
+    if exist "build" rd /s /q "build"
+    if exist "dist" rd /s /q "dist"
+    if exist "BakeRankBot.spec" del "BakeRankBot.spec"
     
     echo.
     echo ========================================
     echo   Build Complete!
     echo ========================================
     echo.
-    echo BakeRankBot.exe is ready in this folder.
-    echo It will use the 'overlay' folder next to it.
+    echo BakeRankBot.exe is ready in this folder:
+    echo %~dp0
     echo.
 ) else (
     echo.
