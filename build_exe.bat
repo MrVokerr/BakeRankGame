@@ -29,9 +29,11 @@ echo.
 
 REM Check for icon
 set "ICON_PARAM=--icon=NONE"
+set "DATA_PARAM="
 if exist "exe_icon.ico" (
     echo Found custom icon: exe_icon.ico
     set "ICON_PARAM=--icon=exe_icon.ico"
+    set "DATA_PARAM=--add-data "exe_icon.ico;.""
 ) else (
     echo No exe_icon.ico found in root folder. Using default icon.
 )
@@ -40,7 +42,7 @@ REM Try py launcher first
 py --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using py launcher...
-    py -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" %ICON_PARAM% ^
+    py -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" %ICON_PARAM% %DATA_PARAM% ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
         --hidden-import "websockets" ^
@@ -54,7 +56,7 @@ REM Try python
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using python...
-    python -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" %ICON_PARAM% ^
+    python -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" %ICON_PARAM% %DATA_PARAM% ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
         --hidden-import "websockets" ^

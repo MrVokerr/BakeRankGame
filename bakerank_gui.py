@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
                              QTextEdit, QGroupBox, QMessageBox, QComboBox, QGridLayout)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtGui import QFont, QIntValidator
+from PyQt5.QtGui import QFont, QIntValidator, QIcon
 import websockets
 from twitchio.ext import commands
 
@@ -182,14 +182,15 @@ def format_item_name(filename):
 # ============ RANK SYSTEM ============
 RANKS = [
     (0, "Floury Beginner"),
-    (20, "Amateur Baker"),
-    (100, "Pastry Apprentice"),
-    (300, "Dough Master"),
-    (700, "Dessert Virtuoso"),
-    (1400, "Oven Overlord"),
-    (3000, "Legendary Patissier"),
-    (6000, "Yeast Beast"),
-    (12000, "Celestial Confectioner")
+    (50, "Amateur Baker"),
+    (250, "Pastry Apprentice"),
+    (750, "Dough Master"),
+    (2000, "Dessert Virtuoso"),
+    (5000, "Oven Overlord"),
+    (10000, "Legendary Patissier"),
+    (25000, "Yeast Beast"),
+    (50000, "Celestial Confectioner"),
+    (100000, "God of Grain")
 ]
 
 def get_rank_title(score):
@@ -673,9 +674,25 @@ class BakeRankGUI(QMainWindow):
         self.bot_thread = None
         self.config = self.load_config()
         self.init_ui()
+
+    def resource_path(self, relative_path):
+        """ Get absolute path to resource, works for dev and for PyInstaller """
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+
+        return os.path.join(base_path, relative_path)
         
     def init_ui(self):
         self.setWindowTitle("Bake Rank")
+        
+        # Set Window Icon
+        icon_path = self.resource_path("exe_icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setGeometry(100, 100, 700, 600)
         
         # Dark mode stylesheet
