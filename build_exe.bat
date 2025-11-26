@@ -27,11 +27,20 @@ echo.
 echo Building executable...
 echo.
 
+REM Check for icon
+set "ICON_PARAM=--icon=NONE"
+if exist "exe_icon.ico" (
+    echo Found custom icon: exe_icon.ico
+    set "ICON_PARAM=--icon=exe_icon.ico"
+) else (
+    echo No exe_icon.ico found in root folder. Using default icon.
+)
+
 REM Try py launcher first
 py --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using py launcher...
-    py -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" --icon=NONE ^
+    py -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" %ICON_PARAM% ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
         --hidden-import "websockets" ^
@@ -45,7 +54,7 @@ REM Try python
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Using python...
-    python -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" --icon=NONE ^
+    python -m PyInstaller --clean --noconfirm --onefile --windowed --name "BakeRankBot" %ICON_PARAM% ^
         --hidden-import "twitchio" ^
         --hidden-import "twitchio.ext.commands" ^
         --hidden-import "websockets" ^
@@ -84,9 +93,10 @@ if exist "dist\BakeRankBot.exe" (
     echo BakeRankBot.exe is ready in this folder:
     echo %~dp0
     echo.
+    echo Press any key to close...
 ) else (
     echo.
     echo ERROR: Build failed! No EXE found in dist folder.
     echo.
 )
-pause
+pause >nul

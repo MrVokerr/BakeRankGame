@@ -39,12 +39,38 @@ class AssetManager:
             self._legendary_items = []
             return
 
-        png_files = glob.glob(os.path.join(self.folder, "*.png"))
+        # 1. Scan Root Folder (Normal Items + Old Legendary)
+        root_files = glob.glob(os.path.join(self.folder, "*.png"))
         
-        self._legendary_items = [os.path.basename(f) for f in png_files if os.path.basename(f).startswith("Legendary-")]
+        # 2. Scan 'legendary' Subfolder (New Legendary Items)
+        legendary_folder = os.path.join(self.folder, "legendary")
+        legendary_files = []
+        if os.path.exists(legendary_folder):
+            legendary_files = glob.glob(os.path.join(legendary_folder, "*.png"))
+
+        self._legendary_items = []
+        self._normal_items = []
+
+        # Process Subfolder Legendaries (Preferred)
+        for f in legendary_files:
+            filename = os.path.basename(f)
+            # Use forward slash for web compatibility
+            self._legendary_items.append(f"legendary/{filename}")
+
+        # Process Root Files
+        for f in root_files:
+            filename = os.path.basename(f)
+            lower_name = filename.lower()
+            
+            # Backward compatibility for "Legendary-" prefix in root
+            if lower_name.startswith("legendary-"):
+                self._legendary_items.append(filename)
+            else:
+                self._normal_items.append(filename)
         
-        normals = [os.path.basename(f) for f in png_files if not os.path.basename(f).startswith("Legendary-")]
-        self._normal_items = normals if normals else ["croissant.png", "donut.png", "Pancakes.png"]
+        # Fallback if no normal items found
+        if not self._normal_items:
+            self._normal_items = ["croissant.png", "donut.png", "Pancakes.png"]
         
         self._last_scan = time.time()
 
@@ -119,11 +145,22 @@ db = PlayerDatabase(DB_PATH)
 player_data = db.players
 
 # ============ BAKED GOODS HELPERS ============
-def choose_baked_good():
-    """Choose a baked good with 1% legendary chance"""
+def choose_baked_good(rarity="standard"):
+    """Choose a baked good based on rarity"""
     legendary = asset_manager.legendary_items
     normal = asset_manager.normal_items
     
+    # Shiny: Pull from BOTH pools
+    if rarity == "shiny":
+        pool = normal + legendary
+        if not pool: 
+            return "croissant.png", False
+        
+        choice = random.choice(pool)
+        is_legendary = choice in legendary
+        return choice, is_legendary
+
+    # Standard/Golden/Burnt: 1% chance of Legendary, else Normal
     if legendary and random.random() < 0.01:
         return random.choice(legendary), True
     else:
@@ -131,7 +168,10 @@ def choose_baked_good():
 
 def format_item_name(filename):
     """Convert filename to display name"""
-    name = os.path.splitext(filename)[0]
+    # Handle paths like "legendary/cake.png" - get just the filename
+    name = os.path.basename(filename)
+    name = os.path.splitext(name)[0]
+    
     # Case-insensitive removal of prefix
     lower_name = name.lower()
     if lower_name.startswith("legendary-") or lower_name.startswith("legendary_") or lower_name.startswith("legendary "):
@@ -387,7 +427,7 @@ class BakeRankBot(commands.Bot):
         player_data[username]['luck'] = 0.0
         
         # Choose item
-        bake_item, is_legendary_item = choose_baked_good()
+        bake_item, is_legendary_item = choose_baked_good(rarity)
         item_display_name = format_item_name(bake_item)
         
         # Legendary Bonus (Override points if legendary, unless already higher)
@@ -796,16 +836,17 @@ class BakeRankGUI(QMainWindow):
         self.rh_duration.setFixedWidth(50)
         self.rh_duration.setPlaceholderText("Min")
         events_layout.addWidget(self.rh_duration, 0, 1)
+        events_layout.addWidget(QLabel("minutes"), 0, 2)
         
         self.rush_hour_btn = QPushButton("Start")
         self.rush_hour_btn.clicked.connect(self.trigger_rush_hour)
         self.rush_hour_btn.setStyleSheet("background-color: #E91E63; color: white; font-weight: bold;")
-        events_layout.addWidget(self.rush_hour_btn, 0, 2)
+        events_layout.addWidget(self.rush_hour_btn, 0, 3)
 
         self.stop_rh_btn = QPushButton("Stop")
         self.stop_rh_btn.clicked.connect(self.stop_rush_hour)
         self.stop_rh_btn.setStyleSheet("background-color: #555; color: white;")
-        events_layout.addWidget(self.stop_rh_btn, 0, 3)
+        events_layout.addWidget(self.stop_rh_btn, 0, 4)
         
         # Bake Sale
         events_layout.addWidget(QLabel("🍪 Bake Sale"), 1, 0)
@@ -814,16 +855,17 @@ class BakeRankGUI(QMainWindow):
         self.bs_duration.setFixedWidth(50)
         self.bs_duration.setPlaceholderText("Min")
         events_layout.addWidget(self.bs_duration, 1, 1)
+        events_layout.addWidget(QLabel("minutes"), 1, 2)
 
         self.bake_sale_btn = QPushButton("Start")
         self.bake_sale_btn.clicked.connect(self.trigger_bake_sale)
         self.bake_sale_btn.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold;")
-        events_layout.addWidget(self.bake_sale_btn, 1, 2)
+        events_layout.addWidget(self.bake_sale_btn, 1, 3)
 
         self.stop_bs_btn = QPushButton("Stop")
         self.stop_bs_btn.clicked.connect(self.stop_bake_sale)
         self.stop_bs_btn.setStyleSheet("background-color: #555; color: white;")
-        events_layout.addWidget(self.stop_bs_btn, 1, 3)
+        events_layout.addWidget(self.stop_bs_btn, 1, 4)
         
         # Food Critic
         events_layout.addWidget(QLabel("🧐 Food Critic"), 2, 0)
@@ -832,16 +874,17 @@ class BakeRankGUI(QMainWindow):
         self.fc_duration.setFixedWidth(50)
         self.fc_duration.setPlaceholderText("Min")
         events_layout.addWidget(self.fc_duration, 2, 1)
+        events_layout.addWidget(QLabel("minutes"), 2, 2)
 
         self.food_critic_btn = QPushButton("Start")
         self.food_critic_btn.clicked.connect(self.trigger_food_critic)
         self.food_critic_btn.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold;")
-        events_layout.addWidget(self.food_critic_btn, 2, 2)
+        events_layout.addWidget(self.food_critic_btn, 2, 3)
 
         self.stop_fc_btn = QPushButton("Stop")
         self.stop_fc_btn.clicked.connect(self.stop_food_critic)
         self.stop_fc_btn.setStyleSheet("background-color: #555; color: white;")
-        events_layout.addWidget(self.stop_fc_btn, 2, 3)
+        events_layout.addWidget(self.stop_fc_btn, 2, 4)
         
         events_group.setLayout(events_layout)
         layout.addWidget(events_group)
@@ -885,10 +928,6 @@ class BakeRankGUI(QMainWindow):
         self.log_display.setReadOnly(True)
         self.log_display.setFont(QFont("Consolas", 9))
         log_layout.addWidget(self.log_display)
-        
-        self.clear_log_btn = QPushButton("🗑 Clear Log")
-        self.clear_log_btn.clicked.connect(self.clear_log)
-        log_layout.addWidget(self.clear_log_btn)
         
         log_group.setLayout(log_layout)
         layout.addWidget(log_group)
@@ -1071,9 +1110,6 @@ class BakeRankGUI(QMainWindow):
         self.log(f"❌ ERROR: {error}")
         QMessageBox.critical(self, "Bot Error", f"An error occurred:\n{error}")
         self.stop_bot()
-        
-    def clear_log(self):
-        self.log_display.clear()
         
     def closeEvent(self, event):
         # Auto-stop bot when window closes

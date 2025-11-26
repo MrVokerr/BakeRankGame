@@ -53,10 +53,14 @@ Test your overlay alerts without affecting player scores.
 ## 🎨 Customizing Baked Goods
 
 1. Open the `overlay` folder.
-2. **Normal Items**: Add any `.png` image (e.g., `croissant.png`, `bagel.png`).
-3. **Legendary Items**: Add images with the prefix `Legendary-` (e.g., `Legendary-WeddingCake.png`).
-    *   *Note:* The bot automatically strips "Legendary-" from the name in chat (e.g., "Wedding Cake").
+2. **Normal Items**: Add any `.png` image (e.g., `croissant.png`, `bagel.png`) directly in the `overlay` folder.
+3. **Legendary Items**: 
+    *   **Option A (Recommended):** Place images in the `overlay/legendary/` subfolder.
+    *   **Option B (Legacy):** Place images in the root folder with the prefix `Legendary-` (e.g., `Legendary-WeddingCake.png`).
     *   *Chance:* Viewers have a base 1% chance to bake these.
+
+### 💎 Shiny Logic
+When a viewer rolls a **Shiny** rarity (0.1% chance + Luck), the item is chosen from **BOTH** the Normal and Legendary pools! This means a Shiny bake could be a Shiny Croissant OR a Shiny Excalibur!
 
 ---
 

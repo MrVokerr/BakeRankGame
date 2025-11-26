@@ -30,6 +30,14 @@ SPECIFICATIONS:
 - Format: PNG with transparent background
 - No limit on number of items!
 
+CUSTOM APP ICON:
+----------------
+To give the BakeRankBot.exe a custom icon:
+1. Create an .ico file (you can convert a PNG to ICO online).
+2. Name it "icon.ico".
+3. Place it in this "overlay" folder.
+4. Run "build_exe.bat" again.
+
 START BY:
 ---------
 Delete this .txt file and add your first PNG image (e.g., baguette.png)
