@@ -160,8 +160,8 @@ def choose_baked_good(rarity="standard"):
         is_legendary = choice in legendary
         return choice, is_legendary
 
-    # Standard/Golden/Burnt: 1% chance of Legendary, else Normal
-    if legendary and random.random() < 0.01:
+    # Standard/Golden/Burnt: 0.1% chance of Legendary, else Normal
+    if legendary and random.random() < 0.001:
         return random.choice(legendary), True
     else:
         return random.choice(normal), False
@@ -400,7 +400,7 @@ class BakeRankBot(commands.Bot):
         old_rank_title = get_rank_title(bake_score)
         
         # Rarity Logic
-        shiny_prob = 0.001 + (luck / 1000.0)
+        shiny_prob = 0.0001 + (luck / 1000.0)
         golden_prob = 0.05 + (luck / 200.0)
         burnt_prob = 0.05
         
