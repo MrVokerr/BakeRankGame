@@ -225,7 +225,7 @@ async def start_overlay_server():
 # ============ TWITCH BOT ============
 class BakeRankBot(commands.Bot):
     def __init__(self, token, channel, log_callback, status_callback):
-        super().__init__(token=token, prefix="!", initial_channels=[channel])
+        super().__init__(token=token, prefix="!", initial_channels=[channel], case_insensitive=True)
         self.token = token
         self.log_callback = log_callback
         self.status_callback = status_callback
@@ -244,6 +244,13 @@ class BakeRankBot(commands.Bot):
         self.food_critic_active = False
         self.food_critic_craving = None
         self.food_critic_end_time = 0
+
+        # Bake Off State
+        self.bake_off_state = "inactive" # inactive, joining, resolving
+        self.bake_off_join_end_time = 0
+        self.bake_off_resolve_time = 0
+        self.bake_off_participants = []
+        self.bake_off_pool = 0
 
     async def event_ready(self):
         self.log_callback(f"✅ Bot logged in as {self.nick}")
@@ -264,7 +271,10 @@ class BakeRankBot(commands.Bot):
                 "bake_sale_progress": f"{self.bake_sale_current}/{self.bake_sale_target}" if self.bake_sale_active else "Inactive",
                 "food_critic_active": self.food_critic_active,
                 "food_critic_craving": format_item_name(self.food_critic_craving) if self.food_critic_active else "None",
-                "food_critic_remaining": int(max(0, self.food_critic_end_time - now)) if self.food_critic_active else 0
+                "food_critic_remaining": int(max(0, self.food_critic_end_time - now)) if self.food_critic_active else 0,
+                "bake_off_state": self.bake_off_state,
+                "bake_off_pool": self.bake_off_pool,
+                "bake_off_timer": int(max(0, self.bake_off_join_end_time - now)) if self.bake_off_state == "joining" else int(max(0, self.bake_off_resolve_time - now)) if self.bake_off_state == "resolving" else 0
             }
             if self.status_callback:
                 self.status_callback(status)
@@ -302,6 +312,33 @@ class BakeRankBot(commands.Bot):
                     if channel:
                         await channel.send("😒 The Food Critic got tired of waiting and left!")
                     self._send_status_update()
+
+                # Bake Off Logic
+                if self.bake_off_state == "joining":
+                    if now > self.bake_off_join_end_time:
+                        if not self.bake_off_participants:
+                            self.bake_off_state = "inactive"
+                            self.log_callback("😞 Bake Off cancelled (No participants)")
+                            if channel: await channel.send("😞 Bake Off cancelled! No one joined.")
+                        else:
+                            self.bake_off_state = "resolving"
+                            self.bake_off_resolve_time = now + 30
+                            names = ", ".join(self.bake_off_participants)
+                            self.log_callback(f"🥊 Bake Off Entries Closed! ({len(self.bake_off_participants)} entries)")
+                            if channel: await channel.send(f"🥊 Bake Off Entries Closed! Participants: {names}. Winner chosen in 30s! Pool: {self.bake_off_pool} pts")
+                        self._send_status_update()
+                
+                elif self.bake_off_state == "resolving":
+                    if now > self.bake_off_resolve_time:
+                        winner = random.choice(self.bake_off_participants)
+                        if winner in player_data:
+                            player_data[winner]['bake_score'] += self.bake_off_pool
+                            await db.save()
+                        
+                        self.log_callback(f"🏆 Bake Off Winner: {winner} (+{self.bake_off_pool} pts)")
+                        if channel: await channel.send(f"🏆 BAKE OFF WINNER: @{winner}! They won {self.bake_off_pool} points! 🏆")
+                        self.bake_off_state = "inactive"
+                        self._send_status_update()
 
                 # Send Status Update to GUI
                 self._send_status_update()
@@ -514,7 +551,7 @@ class BakeRankBot(commands.Bot):
         }
         await broadcast_to_overlays(message)
 
-    @commands.command(name="TopBakers")
+    @commands.command(name="topbakers", aliases=["TopBakers"])
     async def topbakers(self, ctx):
         await self.send_leaderboard_to_chat(ctx)
 
@@ -626,6 +663,66 @@ class BakeRankBot(commands.Bot):
         channel = self.get_channel(self.channel_name)
         if channel:
             await channel.send("🛑 The Food Critic has left the chat.")
+
+    @commands.command(name="bakeoff")
+    async def bakeoff(self, ctx):
+        if self.bake_off_state != "joining":
+            return
+        
+        username = ctx.author.name.lower()
+        if username in self.bake_off_participants:
+            await ctx.send(f"@{username}, you are already in the Bake Off!")
+            return
+            
+        if username not in player_data:
+             await ctx.send(f"@{username}, you need to bake something first!")
+             return
+
+        if player_data[username]['bake_score'] < 10:
+            await ctx.send(f"@{username}, you need 10 points to join!")
+            return
+            
+        player_data[username]['bake_score'] -= 10
+        self.bake_off_participants.append(username)
+        self.bake_off_pool += 10
+        await db.save()
+        await ctx.send(f"⚔️ @{username} joined the Bake Off! (Pool: {self.bake_off_pool})")
+
+    async def start_bake_off(self, duration_minutes=2):
+        if self.bake_off_state != "inactive":
+            self.log_callback("⚠️ Bake Off already active!")
+            return
+
+        self.bake_off_state = "joining"
+        self.bake_off_join_end_time = time.time() + (duration_minutes * 60)
+        self.bake_off_participants = []
+        self.bake_off_pool = 0
+        
+        self.log_callback(f"⚔️ Bake Off started! ({duration_minutes} mins)")
+        self._send_status_update()
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send(f"⚔️ A Bake Off is starting soon! Type !bakeoff to participate! Entry fee: 10 pts. Winner takes all! You have {duration_minutes} minutes to join!")
+
+    async def stop_bake_off(self):
+        if self.bake_off_state == "inactive":
+            return
+        
+        # Refund participants if manually stopped
+        if self.bake_off_pool > 0:
+            for p in self.bake_off_participants:
+                if p in player_data:
+                    player_data[p]['bake_score'] += 10
+            await db.save()
+            self.log_callback("🛑 Bake Off stopped manually. Points refunded.")
+        else:
+            self.log_callback("🛑 Bake Off stopped manually.")
+
+        self.bake_off_state = "inactive"
+        self._send_status_update()
+        channel = self.get_channel(self.channel_name)
+        if channel:
+            await channel.send("🛑 The Bake Off has been stopped manually. Points refunded.")
 
 # ============ BOT THREAD ============
 class BotThread(QThread):
@@ -903,6 +1000,25 @@ class BakeRankGUI(QMainWindow):
         self.stop_fc_btn.setStyleSheet("background-color: #555; color: white;")
         events_layout.addWidget(self.stop_fc_btn, 2, 4)
         
+        # Bake Off
+        events_layout.addWidget(QLabel("⚔️ Bake Off"), 3, 0)
+        self.bo_duration = QLineEdit("2")
+        self.bo_duration.setValidator(int_validator)
+        self.bo_duration.setFixedWidth(50)
+        self.bo_duration.setPlaceholderText("Min")
+        events_layout.addWidget(self.bo_duration, 3, 1)
+        events_layout.addWidget(QLabel("minutes"), 3, 2)
+
+        self.bake_off_btn = QPushButton("Start")
+        self.bake_off_btn.clicked.connect(self.trigger_bake_off)
+        self.bake_off_btn.setStyleSheet("background-color: #FF5722; color: white; font-weight: bold;")
+        events_layout.addWidget(self.bake_off_btn, 3, 3)
+
+        self.stop_bo_btn = QPushButton("Stop")
+        self.stop_bo_btn.clicked.connect(self.stop_bake_off)
+        self.stop_bo_btn.setStyleSheet("background-color: #555; color: white;")
+        events_layout.addWidget(self.stop_bo_btn, 3, 4)
+        
         events_group.setLayout(events_layout)
         layout.addWidget(events_group)
 
@@ -933,6 +1049,14 @@ class BakeRankGUI(QMainWindow):
         self.fc_status_label.setStyleSheet("color: #888;")
         fc_layout.addWidget(self.fc_status_label)
         status_layout.addLayout(fc_layout)
+
+        # Bake Off Status
+        bo_layout = QVBoxLayout()
+        bo_layout.addWidget(QLabel("⚔️ Bake Off"))
+        self.bo_status_label = QLabel("Inactive")
+        self.bo_status_label.setStyleSheet("color: #888;")
+        bo_layout.addWidget(self.bo_status_label)
+        status_layout.addLayout(bo_layout)
 
         status_group.setLayout(status_layout)
         layout.addWidget(status_group)
@@ -1007,6 +1131,7 @@ class BakeRankGUI(QMainWindow):
         self.rh_status_label.setText("Inactive")
         self.bs_status_label.setText("Inactive")
         self.fc_status_label.setText("Inactive")
+        self.bo_status_label.setText("Inactive")
 
     def update_status_display(self, status):
         # Rush Hour
@@ -1032,6 +1157,17 @@ class BakeRankGUI(QMainWindow):
         else:
             self.fc_status_label.setText("Inactive")
             self.fc_status_label.setStyleSheet("color: #888;")
+
+        # Bake Off
+        if status.get("bake_off_state", "inactive") != "inactive":
+            state = status["bake_off_state"].upper()
+            pool = status.get("bake_off_pool", 0)
+            timer = status.get("bake_off_timer", 0)
+            self.bo_status_label.setText(f"{state}\nPool: {pool}\nTime: {timer}s")
+            self.bo_status_label.setStyleSheet("color: #FF5722; font-weight: bold;")
+        else:
+            self.bo_status_label.setText("Inactive")
+            self.bo_status_label.setStyleSheet("color: #888;")
         
     def test_custom_bake(self):
         rarity_text = self.rarity_combo.currentText().lower()
@@ -1182,6 +1318,22 @@ class BakeRankGUI(QMainWindow):
         if self.bot_thread and self.bot_thread.bot:
             asyncio.run_coroutine_threadsafe(self.bot_thread.bot.stop_food_critic(), self.bot_thread.loop)
             self.log("🛑 Stopped Food Critic!")
+
+    def trigger_bake_off(self):
+        if self.bot_thread and self.bot_thread.bot:
+            try:
+                duration = int(self.bo_duration.text())
+            except ValueError:
+                duration = 2
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.start_bake_off(duration), self.bot_thread.loop)
+            self.log(f"⚔️ Triggered Bake Off ({duration} mins)!")
+        else:
+            QMessageBox.warning(self, "Bot Not Running", "Please start the bot first!")
+
+    def stop_bake_off(self):
+        if self.bot_thread and self.bot_thread.bot:
+            asyncio.run_coroutine_threadsafe(self.bot_thread.bot.stop_bake_off(), self.bot_thread.loop)
+            self.log("🛑 Stopped Bake Off!")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
