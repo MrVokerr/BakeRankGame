@@ -14,8 +14,10 @@ An interactive Twitch stream game where viewers bake virtual pastries, climb ran
 2. Enter your credentials:
    - **OAuth Token**: Get from [TwitchTokenGenerator](https://twitchtokengenerator.com/) (Select 'Custom Scope' -> enable `chat:read` and `chat:edit`).
    - **Channel Name**: Your Twitch username.
-3. Click **"💾 Save Configuration"**.
-4. Click **"▶ Start Bot"**.
+3. **Overlay Settings**:
+   - **Show Banner in Overlay**: Toggle this checkbox to enable/disable the top notification banner in the overlay.
+4. Click **"💾 Save Configuration"**.
+5. Click **"▶ Start Bot"**.
 
 ### 2. Overlay Setup (OBS/Streamlabs)
 1. Add a **Browser Source**.
@@ -41,6 +43,10 @@ Trigger special events to boost engagement. You can now set custom durations (in
 *   **🧐 Food Critic**: The critic craves a specific item.
     *   *Input:* Duration in minutes.
     *   *Action:* First person to bake the craving gets a **+50 Point Bonus**.
+*   **⚔️ Bake Off**: A PvP baking tournament!
+    *   *Input:* Join duration in minutes.
+    *   *Action:* Viewers type `!bakeoff` to join (Cost: 10 pts). Winner takes the entire pot!
+    *   *Note:* A reminder is sent to chat halfway through the joining period.
 
 ### **Test Lab**
 Test your overlay alerts without affecting player scores.
@@ -66,11 +72,14 @@ When a viewer rolls a **Shiny** rarity (0.1% chance + Luck), the item is chosen 
 
 ## 🎮 Twitch Commands for Viewers
 
+*Commands are case-insensitive (e.g., `!bake`, `!BAKE`, `!Bake` all work).*
+
 - **!bake** - Bake a pastry! Cooldown: 60s (10s during Rush Hour).
 - **!eat [amount]** - Eat points to gain **Luck**.
     *   *1 Point = 5% Luck*.
     *   Higher luck increases chances for **Shiny** and **Golden** items on the *next* bake.
-- **!TopBakers** - Displays the top 5 leaderboard in chat.
+- **!topbakers** (Aliases: `!topbaker`, `!leaderboard`) - Displays the top 5 leaderboard in chat.
+- **!bakeoff** - Join an active Bake Off tournament (Cost: 10 pts).
 
 ---
 
@@ -79,14 +88,15 @@ When a viewer rolls a **Shiny** rarity (0.1% chance + Luck), the item is chosen 
 | Points | Rank |
 |--------|------|
 | 0 | Floury Beginner |
-| 20 | Amateur Baker |
-| 100 | Pastry Apprentice |
-| 300 | Dough Master |
-| 700 | Dessert Virtuoso |
-| 1400 | Oven Overlord |
-| 3000 | Legendary Patissier |
-| 6000 | Yeast Beast |
-| 12000 | Celestial Confectioner |
+| 50 | Amateur Baker |
+| 250 | Pastry Apprentice |
+| 750 | Dough Master |
+| 2000 | Dessert Virtuoso |
+| 5000 | Oven Overlord |
+| 10000 | Legendary Patissier |
+| 25000 | Yeast Beast |
+| 50000 | Celestial Confectioner |
+| 100000 | God of Grain |
 
 ---
 
