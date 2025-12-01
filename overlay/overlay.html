@@ -174,7 +174,9 @@
 
             if (data.event === "bake") {
                 animateBake(data);
-                // showNotification(data); // Disabled by user request
+                if (data.show_banner) {
+                    showNotification(data);
+                }
             }
         };
 

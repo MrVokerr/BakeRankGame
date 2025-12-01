@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-                             QTextEdit, QGroupBox, QMessageBox, QComboBox, QGridLayout)
+                             QTextEdit, QGroupBox, QMessageBox, QComboBox, QGridLayout, QCheckBox)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QFont, QIntValidator, QIcon
 import websockets
@@ -253,6 +253,12 @@ class BakeRankBot(commands.Bot):
         self.bake_off_pool = 0
         self.bake_off_start_time = 0
         self.bake_off_reminder_sent = False
+        
+        # Settings
+        self.show_banner = True
+
+    def set_show_banner(self, enabled):
+        self.show_banner = enabled
 
     async def event_ready(self):
         self.log_callback(f"✅ Bot logged in as {self.nick}")
@@ -564,7 +570,8 @@ class BakeRankBot(commands.Bot):
             "is_legendary": is_legendary_item,
             "rarity": rarity,
             "trigger_explosion": trigger_explosion,
-            "ranked_up": ranked_up
+            "ranked_up": ranked_up,
+            "show_banner": self.show_banner
         }
         await broadcast_to_overlays(message)
 
@@ -750,10 +757,11 @@ class BotThread(QThread):
     error_signal = pyqtSignal(str)
     status_signal = pyqtSignal(dict)
     
-    def __init__(self, token, channel):
+    def __init__(self, token, channel, show_banner=True):
         super().__init__()
         self.token = token
         self.channel = channel
+        self.show_banner = show_banner
         self.bot = None
         self.loop = None
         
@@ -762,6 +770,10 @@ class BotThread(QThread):
 
     def update_status(self, status):
         self.status_signal.emit(status)
+
+    def set_show_banner(self, enabled):
+        if self.bot:
+            self.bot.set_show_banner(enabled)
         
     def run(self):
         try:
@@ -774,6 +786,7 @@ class BotThread(QThread):
             
             # Start bot
             self.bot = BakeRankBot(self.token, self.channel, self.log, self.update_status)
+            self.bot.set_show_banner(self.show_banner)
             bot_task = self.loop.create_task(self.bot.start())
             
             self.loop.run_until_complete(asyncio.gather(overlay_task, bot_task))
@@ -898,6 +911,12 @@ class BakeRankGUI(QMainWindow):
         self.channel_input.setText(self.config.get('channel', ''))
         channel_layout.addWidget(self.channel_input)
         config_layout.addLayout(channel_layout)
+
+        # Overlay Settings
+        self.show_banner_cb = QCheckBox("Show Banner in Overlay")
+        self.show_banner_cb.setChecked(self.config.get('show_banner', True))
+        self.show_banner_cb.stateChanged.connect(self.toggle_banner)
+        config_layout.addWidget(self.show_banner_cb)
         
         # Save Config Button
         self.save_config_btn = QPushButton("💾 Save Configuration")
@@ -1108,7 +1127,8 @@ class BakeRankGUI(QMainWindow):
     def save_configuration(self):
         config = {
             'token': self.token_input.text(),
-            'channel': self.channel_input.text()
+            'channel': self.channel_input.text(),
+            'show_banner': self.show_banner_cb.isChecked()
         }
         try:
             with open(CONFIG_FILE, 'w') as f:
@@ -1131,13 +1151,30 @@ class BakeRankGUI(QMainWindow):
         self.log("🍞 Starting BakeRank Bot...")
         self.log("=" * 50)
         
-        self.bot_thread = BotThread(token, channel)
+        show_banner = self.show_banner_cb.isChecked()
+        self.bot_thread = BotThread(token, channel, show_banner)
         self.bot_thread.log_signal.connect(self.log)
         self.bot_thread.error_signal.connect(self.show_error)
         self.bot_thread.status_signal.connect(self.update_status_display)
         self.bot_thread.start()
         
+        # Set initial banner state
+        # We need to wait a bit for bot to be ready, or just set it. 
+        # Since bot is created in run(), we can't set it immediately on the bot object.
+        # But we can use a signal or just wait. 
+        # Actually, BotThread.run() creates the bot. 
+        # Let's just rely on the user toggling it or set it after a delay?
+        # Better: Pass it to BotThread constructor or set it via a method that queues it.
+        # For now, let's just call set_show_banner after a short delay or assume the default is True and we update it if needed.
+        # But wait, I added set_show_banner to BotThread.
+        # Let's use a QTimer to set it once the thread is running? 
+        # Or just pass it to BotThread constructor.
+        
         self.start_btn.setEnabled(False)
+
+    def toggle_banner(self, state):
+        if self.bot_thread:
+            self.bot_thread.set_show_banner(self.show_banner_cb.isChecked())
         
     def stop_bot(self):
         if self.bot_thread:
@@ -1215,7 +1252,8 @@ class BakeRankGUI(QMainWindow):
             "is_legendary": is_legendary,
             "rarity": rarity,
             "trigger_explosion": True,
-            "ranked_up": False
+            "ranked_up": False,
+            "show_banner": self.show_banner_cb.isChecked()
         }
         
         if rarity in ["shiny", "golden"] or is_legendary:
@@ -1239,7 +1277,8 @@ class BakeRankGUI(QMainWindow):
             "item": bake_item,
             "is_legendary": is_legendary,
             "trigger_explosion": True,
-            "ranked_up": False
+            "ranked_up": False,
+            "show_banner": self.show_banner_cb.isChecked()
         }
         
         asyncio.run(broadcast_to_overlays(message))
@@ -1266,7 +1305,8 @@ class BakeRankGUI(QMainWindow):
             "item": bake_item,
             "is_legendary": True,
             "trigger_explosion": True,
-            "ranked_up": False
+            "ranked_up": False,
+            "show_banner": self.show_banner_cb.isChecked()
         }
         
         asyncio.run(broadcast_to_overlays(message))
