@@ -251,13 +251,20 @@ class BakeRankBot(commands.Bot):
         self.bake_off_resolve_time = 0
         self.bake_off_participants = []
         self.bake_off_pool = 0
+        self.bake_off_start_time = 0
+        self.bake_off_reminder_sent = False
 
     async def event_ready(self):
         self.log_callback(f"✅ Bot logged in as {self.nick}")
         self.log_callback(f"📺 Connected to channel: {self.channel_name}")
-        self.log_callback(f"🎮 Commands: !bake, !TopBakers")
+        self.log_callback(f"🎮 Commands: !bake, !topbakers, !bakeoff")
         self.log_callback("-" * 50)
         self.loop.create_task(self.game_loop())
+
+    async def event_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandNotFound):
+            return
+        self.log_callback(f"❌ Command Error: {error}")
 
     def _send_status_update(self):
         """Helper to send current event status to GUI"""
@@ -315,6 +322,16 @@ class BakeRankBot(commands.Bot):
 
                 # Bake Off Logic
                 if self.bake_off_state == "joining":
+                    # Reminder Logic (Halfway mark)
+                    if not self.bake_off_reminder_sent:
+                        total_duration = self.bake_off_join_end_time - self.bake_off_start_time
+                        if (now - self.bake_off_start_time) >= (total_duration / 2):
+                            self.bake_off_reminder_sent = True
+                            remaining = int(self.bake_off_join_end_time - now)
+                            time_str = f"{remaining // 60}m {remaining % 60}s" if remaining >= 60 else f"{remaining}s"
+                            if channel:
+                                await channel.send(f"⚠️ Bake Off entries closing in {time_str}! Join now with !bakeoff")
+
                     if now > self.bake_off_join_end_time:
                         if not self.bake_off_participants:
                             self.bake_off_state = "inactive"
@@ -551,8 +568,9 @@ class BakeRankBot(commands.Bot):
         }
         await broadcast_to_overlays(message)
 
-    @commands.command(name="topbakers", aliases=["TopBakers"])
+    @commands.command(name="topbakers", aliases=["topbaker", "leaderboard"])
     async def topbakers(self, ctx):
+        self.log_callback(f"📊 Leaderboard requested by {ctx.author.name}")
         await self.send_leaderboard_to_chat(ctx)
 
     async def fetch_leaderboard(self):
@@ -695,6 +713,8 @@ class BakeRankBot(commands.Bot):
 
         self.bake_off_state = "joining"
         self.bake_off_join_end_time = time.time() + (duration_minutes * 60)
+        self.bake_off_start_time = time.time()
+        self.bake_off_reminder_sent = False
         self.bake_off_participants = []
         self.bake_off_pool = 0
         
