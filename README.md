@@ -1,5 +1,7 @@
 # BakeRank Bot - Streamer Edition 🍞
 
+# New project found at: https://github.com/MrVokerr/ChatCollect
+
 ## 🎮 What is BakeRank?
 An interactive Twitch stream game where viewers bake virtual pastries, climb ranks, and trigger animations on your stream overlay! 
 
