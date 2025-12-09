@@ -1,0 +1,81 @@
+{
+    "commands": {
+        "loot": "!bake",
+        "leaderboard": "!topbakers",
+        "contest": "!bakeoff",
+        "use": "!eat"
+    },
+    "messages": {
+        "cooldown": "⏳ @{username}, oven cooling... wait {remaining}s.",
+        "loot_success": "🍞 @{username} baked a {item}! (+{points} pts) ({rank}) | Score: {score}",
+        "loot_legendary": "✨ @{username} baked a LEGENDARY {item}! (+{points} pts) ({rank}) | Score: {score}",
+        "rank_up": "🎉 {username} promoted to {rank}!",
+        "contest_start": "⚔️ A Bake Off is starting soon! Type {command} to participate! Entry fee: 10 pts. Winner takes all!",
+        "contest_winner": "🏆 BAKE OFF WINNER: @{username}! They won {prize} points! 🏆",
+        "rush_hour_start": "🚀 The Rush Hour has started! Cooldowns are reduced to 10 seconds!",
+        "loot_drive_start": "🍪 Catering Order: {target} Baked Goods needed! The Bake Sale has started!",
+        "bounty_hunter_spawn": "🧐 The Food Critic has entered the chat! They crave a {item}!",
+        "bounty_hunter_satisfied": "🧐 {username} satisfied the Food Critic! (+{points} pts)"
+    },
+    "events": {
+        "rush_hour_name": "Rush Hour",
+        "loot_drive_name": "Bake Sale",
+        "bounty_hunter_name": "Food Critic",
+        "contest_name": "Bake Off"
+    },
+    "ranks": [
+        {
+            "score": 0,
+            "title": "Floury Beginner"
+        },
+        {
+            "score": 50,
+            "title": "Amateur Baker"
+        },
+        {
+            "score": 250,
+            "title": "Pastry Apprentice"
+        },
+        {
+            "score": 750,
+            "title": "Dough Master"
+        },
+        {
+            "score": 2000,
+            "title": "Dessert Virtuoso"
+        },
+        {
+            "score": 5000,
+            "title": "Oven Overlord"
+        },
+        {
+            "score": 10000,
+            "title": "Legendary Patissier"
+        },
+        {
+            "score": 25000,
+            "title": "Yeast Beast"
+        },
+        {
+            "score": 50000,
+            "title": "Celestial Confectioner"
+        },
+        {
+            "score": 100000,
+            "title": "God of Grain"
+        }
+    ],
+    "token": "",
+    "channel": "",
+    "show_banner": true,
+    "theme": "Dark Mode",
+    "font_family": "Segoe UI",
+    "font_size": 11,
+    "output_dir": "C:\\Users\\Voker\\OneDrive\\Desktop\\ChatCollect",
+    "autosave_interval": 5,
+    "cooldown": 60,
+    "shiny_chance": 10000,
+    "legendary_chance": 1000,
+    "loot_min": 1,
+    "loot_max": 1
+}
